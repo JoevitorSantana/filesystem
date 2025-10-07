@@ -21,10 +21,10 @@ void Push(Pilha *pilha, int bloco) {
 }
 
 void LiberarPilha(Pilha *pilha) {
-    No *Aux;
+    No *Aux = pilha->topo;
     while (Aux != NULL) {
         No *Aux2 = Aux->prox;
-        delete(Aux2);
+        delete(Aux);
         Aux = Aux2;
     }
     delete(pilha);
