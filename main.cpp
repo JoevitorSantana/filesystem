@@ -102,12 +102,18 @@ void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int bl
 int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco);
 void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorio);
 void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista);
+int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco);
+void alterarPermissao(char *nome, char *novaPermissao, int blocoAtual, Bloco *disco);
+void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco);
 
 void inicializarInode(Inode &inode)
 {
     inode.contadorHardLinks = 0;
     inode.tamanho = 0;
     inode.protecao[0] = '\0';
+
+    strcpy(inode.protecao, "rwxr-xr-x");
+
     for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++)
     {
         inode.enderecosDiretos[j] = -1;
@@ -231,6 +237,19 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
             else
                 printf("Uso: rm <nome_arquivo>\n");
         }
+        else if (strcmp(comando, "chmod") == 0)
+        {
+            arg1 = strtok(NULL, " "); // nome do arquivo
+            arg2 = strtok(NULL, " "); // nova permissão
+            if (arg1 != NULL && arg2 != NULL)
+            {
+                alterarPermissao(arg1, arg2, blocoAtual, disco);
+            }
+            else
+            {
+                printf("Uso: chmod <nome_arquivo> <nova_permissao>\n");
+            }
+        }
         else
         {
             pid_t pid = fork();
@@ -245,7 +264,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
                 {
                     arg1 = strtok(NULL, " ");
                     if (arg1 != NULL && strcmp(arg1, "-l") == 0)
-                        listarDiretorio(disco[blocoAtual].diretorio);
+                        listarDiretorioDetalhado(disco[blocoAtual].diretorio, disco);
                     else if (arg1 != NULL)
                         printf("Uso: ls [-l]\n");
                     else
@@ -554,6 +573,78 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
         disco[blocoAtual].diretorio.entradas[j] = disco[blocoAtual].diretorio.entradas[j + 1];
     }
     disco[blocoAtual].diretorio.quantidadeEntradas--;
+}
+
+int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco)
+{
+    for (int i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
+    {
+        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0)
+        {
+            return disco[blocoAtual].diretorio.entradas[i].bloco;
+        }
+    }
+
+    return -1;
+}
+
+void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco)
+{
+    printf("\nPermissões\tTamanho\tLinks\tNome\n");
+    printf("-----------\t-------\t------\t----\n");
+
+    for (int i = 2; i < diretorio.quantidadeEntradas; i++)
+    {
+        int blocoInode = diretorio.entradas[i].bloco;
+
+        if (disco[blocoInode].tipo == INODE)
+        {
+            Inode inode = disco[blocoInode].inode;
+            char perm[11]; // buffer local (10 chars + \0)
+            
+            if (inode.protecao[0]) {
+                strcpy(perm, inode.protecao);
+            } else {
+                strcpy(perm, "rwxr-xr--");
+            }
+            
+            printf("%s\t%dB\t%d\t%s\n", perm, inode.tamanho, inode.contadorHardLinks, diretorio.entradas[i].nome);
+        }
+        else
+        {
+            printf("----------\t--\t--\t%s\n", diretorio.entradas[i].nome);
+        }
+    }
+    printf("\n");
+}
+
+void alterarPermissao(char *nome, char *novaPermissao, int blocoAtual, Bloco *disco)
+{
+    int blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
+    if (blocoInode == -1)
+    {
+        printf("Arquivo ou diretório não encontrado.\n");
+        return;
+    }
+
+    if (strlen(novaPermissao) != 9)
+    {
+        printf("Permissão inválida. Use formato rwxr-xr-- (9 caracteres)\n");
+        return;
+    }
+
+    for (int i = 0; i < 9; i++)
+    {
+        char c = novaPermissao[i];
+        if (c != 'r' && c != 'w' && c != 'x' && c != '-')
+        {
+            printf("Permissão inválida. Use apenas caracteres r, w, x ou -.\n");
+            return;
+        }
+    }
+
+    strcpy(disco[blocoInode].inode.protecao, novaPermissao);
+    printf("Permissão alterada para %s\n", novaPermissao);
 }
 
 void listarDiretorio(Diretorio diretorio)
