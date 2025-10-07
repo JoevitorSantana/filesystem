@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <conio.c>
+// #include <conio.c>
 
 #define MAX_ENDERECOS_DIRETOS_INODE 5
 #define MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE 5
@@ -76,20 +76,10 @@ enum tipoBloco
     INODE = 'I'
 };
 
-enum Comandos
-{
-    LS = 'ls',
-    MKDIR = 'mkdir',
-    CD = 'cd',
-    TOUCH = 'touch',
-    VI = 'vi',
-    RMDIR = 'rmdir',
-    RM = 'rm',
-    LINK = 'link',
-    UNLINK = 'unlink',
-    CHMOD = 'chmod',
-    EXIT = 'exit'
+enum Comando {
+    LS, MKDIR, CD, TOUCH, VI, RMDIR, RM, LINK, UNLINK, CHMOD, EXIT
 };
+
 
 #include "TADPilhaBlocos.h"
 #include "TADListaEncadeadaBlocosLivres.h"
@@ -137,13 +127,20 @@ void inicializarBlocos(Bloco *disco, int quantidadeBlocos)
 
 void inicializarDiretorio(Bloco *disco, int bloco, int blocoPai)
 {
-    disco[bloco].tipo = ARQUIVO;
+    disco[bloco].tipo = DIRETORIO; // <- estava ARQUIVO antes
     disco[bloco].diretorio.quantidadeEntradas = 2;
     strcpy(disco[bloco].diretorio.entradas[0].nome, ".");
     disco[bloco].diretorio.entradas[0].bloco = bloco;
     strcpy(disco[bloco].diretorio.entradas[1].nome, "..");
     disco[bloco].diretorio.entradas[1].bloco = blocoPai;
+
+    // zera o resto para evitar lixo
+    for (int i = 2; i < 10; i++) {
+        disco[bloco].diretorio.entradas[i].nome[0] = '\0';
+        disco[bloco].diretorio.entradas[i].bloco = -1;
+    }
 }
+
 
 void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
 {
@@ -154,13 +151,13 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
     int blocoAtual = 0; // bloco do diretorio raiz
 
     do {
-        textcolor(GREEN);
+        // textcolor(GREEN);
         printf("root@localhost");
-        textcolor(WHITE);
+        // textcolor(WHITE);
         printf(":");
-        textcolor(LIGHTBLUE);
+        // textcolor(LIGHTBLUE);
         printf("%s", caminho);
-        textcolor(WHITE);
+        // textcolor(WHITE);
         printf("$ ");
 
         if (fgets(linha, sizeof(linha), stdin) == NULL) break; 
@@ -252,16 +249,27 @@ int quantidadeBlocosLivres(ListaBlocosLivres *lista) {
 int alocarBloco(ListaBlocosLivres *lista)
 {
     NoLista *Aux = lista->cabeca;
+    if (Aux == NULL) {
+        printf("Espaco insuficiente\n");
+        return -1;
+    }
+
     if (Count(Aux->blocos) == 0 && Aux->prox != NULL) {
         RemoverInicio(lista);
         Aux = lista->cabeca;
+        if (Aux == NULL) { // segurança extra
+            printf("Espaco insuficiente\n");
+            return -1;
+        }
     } else if (Count(Aux->blocos) == 0 && Aux->prox == NULL) {
         printf("Espaco insuficiente\n");
         return -1;
     }
 
-    Pop(Aux->blocos);
+    int bloco = Pop(Aux->blocos);  // Pop deve retornar o índice do bloco
+    return bloco;
 }
+
 
 void realocarBlocos(ListaBlocosLivres *lista, int bloco)
 {
