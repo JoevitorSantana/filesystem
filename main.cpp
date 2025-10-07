@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 // #include <conio.c>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #define MAX_ENDERECOS_DIRETOS_INODE 5
 #define MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE 5
@@ -76,10 +79,20 @@ enum tipoBloco
     INODE = 'I'
 };
 
-enum Comando {
-    LS, MKDIR, CD, TOUCH, VI, RMDIR, RM, LINK, UNLINK, CHMOD, EXIT
+enum Comando
+{
+    LS,
+    MKDIR,
+    CD,
+    TOUCH,
+    VI,
+    RMDIR,
+    RM,
+    LINK,
+    UNLINK,
+    CHMOD,
+    EXIT
 };
-
 
 #include "TADPilhaBlocos.h"
 #include "TADListaEncadeadaBlocosLivres.h"
@@ -135,12 +148,12 @@ void inicializarDiretorio(Bloco *disco, int bloco, int blocoPai)
     disco[bloco].diretorio.entradas[1].bloco = blocoPai;
 
     // zera o resto para evitar lixo
-    for (int i = 2; i < 10; i++) {
+    for (int i = 2; i < 10; i++)
+    {
         disco[bloco].diretorio.entradas[i].nome[0] = '\0';
         disco[bloco].diretorio.entradas[i].bloco = -1;
     }
 }
-
 
 void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
 {
@@ -150,7 +163,8 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
     char caminho[100] = "/";
     int blocoAtual = 0; // bloco do diretorio raiz
 
-    do {
+    do
+    {
         // textcolor(GREEN);
         printf("root@localhost");
         // textcolor(WHITE);
@@ -160,7 +174,8 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
         // textcolor(WHITE);
         printf("$ ");
 
-        if (fgets(linha, sizeof(linha), stdin) == NULL) break; 
+        if (fgets(linha, sizeof(linha), stdin) == NULL)
+            break;
 
         // Remove a quebra de linha ('\n') adicionada por fgets
         linha[strcspn(linha, "\n")] = '\0';
@@ -169,65 +184,115 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
         comando = strtok(linha, " ");
 
         // Se a linha estiver vazia, continua o loop
-        if (comando == NULL) continue;
+        if (comando == NULL)
+            continue;
 
-        if (strcmp(comando, "ls") == 0) {
+        if (strcmp(comando, "cd") == 0)
+        {
             arg1 = strtok(NULL, " ");
-            if (arg1 != NULL) {
-                if (strcmp(arg1, "-l") == 0) {
-                    listarDiretorio(disco[blocoAtual].diretorio);
-                } else {
-                    printf("Uso: ls [-l]\n");
+            if (arg1 != NULL)
+            {
+                int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
+                if (blocoDiretorio >= 0)
+                {
+                    blocoAtual = blocoDiretorio;
                 }
-            } else
-                listarDiretorio(disco[blocoAtual].diretorio);
-        } else if(strcmp(comando, "mkdir") == 0) {
+                else
+                    printf("Diretório não encontrado: %s\n", arg1);
+            }
+            else
+                printf("Uso: cd <caminho_diretorio>\n");
+        }
+        else if (strcmp(comando, "mkdir") == 0)
+        {
             arg1 = strtok(NULL, " ");
             if (arg1 != NULL)
                 inserirDiretorio(arg1, listaBlocosLivres, disco, blocoAtual);
             else
                 printf("Uso: mkdir <nome_diretorio>\n");
-        } else if(strcmp(comando, "cd") == 0) {
-            arg1 = strtok(NULL, " ");
-            if (arg1 != NULL) {
-                int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
-                blocoAtual = blocoDiretorio;
-            } else {
-                printf("Uso: cd <caminho_diretorio>\n");
-            }
-        } else if(strcmp(comando, "touch") == 0) {
+        }
+        else if (strcmp(comando, "touch") == 0)
+        {
             arg1 = strtok(NULL, " ");
             arg2 = strtok(NULL, " ");
-            if (arg1 != NULL && arg2 != NULL) {
+            if (arg1 != NULL && arg2 != NULL)
+            {
                 int tamanho = atoi(arg2);
                 inserirArquivo(arg1, tamanho, listaBlocosLivres, disco, blocoAtual);
-            } else {
-                printf("Uso: touch <nome_arquivo> <tamanho_em_bytes>\n");
             }
-        } else if(strcmp(comando, "vi") == 0) {
-
-        } else if(strcmp(comando, "rmdir") == 0) {
-
-        } else if(strcmp(comando, "rm") == 0) {
+            else
+                printf("Uso: touch <nome_arquivo> <tamanho_em_bytes>\n");
+        }
+        else if (strcmp(comando, "rm") == 0)
+        {
             arg1 = strtok(NULL, " ");
             if (arg1 != NULL)
                 removerArquivo(arg1, blocoAtual, disco, listaBlocosLivres);
             else
                 printf("Uso: rm <nome_arquivo>\n");
-        } else if(strcmp(comando, "link") == 0) {
+        }
+        else
+        {
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                perror("Erro ao criar processo filho");
+                continue;
+            }
+            else if (pid == 0)
+            {
+                if (strcmp(comando, "ls") == 0)
+                {
+                    arg1 = strtok(NULL, " ");
+                    if (arg1 != NULL && strcmp(arg1, "-l") == 0)
+                        listarDiretorio(disco[blocoAtual].diretorio);
+                    else if (arg1 != NULL)
+                        printf("Uso: ls [-l]\n");
+                    else
+                        listarDiretorio(disco[blocoAtual].diretorio);
+                }
+                else if (strcmp(comando, "vi") == 0)
+                {
+                    printf("Simulação de vi (não implementada)\n");
+                }
+                else if (strcmp(comando, "rmdir") == 0)
+                {
+                    printf("Simulação de rmdir (não implementada)\n");
+                }
+                else if (strcmp(comando, "link") == 0)
+                {
+                    printf("Simulação de link (não implementada)\n");
+                }
+                else if (strcmp(comando, "unlink") == 0)
+                {
+                    printf("Simulação de unlink (não implementada)\n");
+                }
+                else if (strcmp(comando, "chmod") == 0)
+                {
+                    printf("Simulação de chmod (não implementada)\n");
+                }
+                else
+                {
+                    printf("Comando não encontrado: %s\n", comando);
+                }
 
-        } else if(strcmp(comando, "unlink") == 0) {
-
-        } else if(strcmp(comando, "chmod") == 0) {
-
+                _exit(0);
+            }
+            else
+            {
+                wait(NULL); // espera o filho terminar
+            }
         }
     } while (strcmp(comando, "exit") != 0);
 }
 
-void inicializarListaBlocosLivres(ListaBlocosLivres *lista, int quantidadeBlocos) {
-    while (quantidadeBlocos > 0) {
+void inicializarListaBlocosLivres(ListaBlocosLivres *lista, int quantidadeBlocos)
+{
+    while (quantidadeBlocos > 0)
+    {
         Pilha *pilha = CriarPilha();
-        for (int i = 0; i < MAX_ENDERECOS_BLOCOS_LISTA_LIVRE && quantidadeBlocos > 0; i++) {
+        for (int i = 0; i < MAX_ENDERECOS_BLOCOS_LISTA_LIVRE && quantidadeBlocos > 0; i++)
+        {
             Push(pilha, quantidadeBlocos - 1);
             quantidadeBlocos--;
         }
@@ -235,11 +300,13 @@ void inicializarListaBlocosLivres(ListaBlocosLivres *lista, int quantidadeBlocos
     }
 }
 
-int quantidadeBlocosLivres(ListaBlocosLivres *lista) {
+int quantidadeBlocosLivres(ListaBlocosLivres *lista)
+{
     NoLista *Aux;
     Aux = lista->cabeca;
     int contador = 0;
-    while(Aux != NULL) {
+    while (Aux != NULL)
+    {
         contador = Count(Aux->blocos) + contador;
         Aux = Aux->prox;
     }
@@ -249,36 +316,43 @@ int quantidadeBlocosLivres(ListaBlocosLivres *lista) {
 int alocarBloco(ListaBlocosLivres *lista)
 {
     NoLista *Aux = lista->cabeca;
-    if (Aux == NULL) {
+    if (Aux == NULL)
+    {
         printf("Espaco insuficiente\n");
         return -1;
     }
 
-    if (Count(Aux->blocos) == 0 && Aux->prox != NULL) {
+    if (Count(Aux->blocos) == 0 && Aux->prox != NULL)
+    {
         RemoverInicio(lista);
         Aux = lista->cabeca;
-        if (Aux == NULL) { // segurança extra
+        if (Aux == NULL)
+        { // segurança extra
             printf("Espaco insuficiente\n");
             return -1;
         }
-    } else if (Count(Aux->blocos) == 0 && Aux->prox == NULL) {
+    }
+    else if (Count(Aux->blocos) == 0 && Aux->prox == NULL)
+    {
         printf("Espaco insuficiente\n");
         return -1;
     }
 
-    int bloco = Pop(Aux->blocos);  // Pop deve retornar o índice do bloco
+    int bloco = Pop(Aux->blocos); // Pop deve retornar o índice do bloco
     return bloco;
 }
-
 
 void realocarBlocos(ListaBlocosLivres *lista, int bloco)
 {
     // Se tiver espaço insere
     // Se não cria outro nó, insere na lista
-    NoLista *Aux = lista->cabeca; 
-    if (Count(Aux->blocos) < MAX_ENDERECOS_BLOCOS_LISTA_LIVRE) {
+    NoLista *Aux = lista->cabeca;
+    if (Count(Aux->blocos) < MAX_ENDERECOS_BLOCOS_LISTA_LIVRE)
+    {
         Push(Aux->blocos, bloco);
-    } else {
+    }
+    else
+    {
         Pilha *pilha = CriarPilha();
         Push(pilha, bloco);
         InserirInicio(lista, pilha);
@@ -288,36 +362,43 @@ void realocarBlocos(ListaBlocosLivres *lista, int bloco)
 void alocarBlocosEInserirInode(ListaBlocosLivres *lista, int quantidade)
 {
     // verificar se ha blocos suficientes
-    if (quantidade > quantidadeBlocosLivres(lista)) {
+    if (quantidade > quantidadeBlocosLivres(lista))
+    {
         printf("Nao ha espaco suficiente\n");
         return;
     }
     // verificar se proximo no da lista nao eh nulo
     NoLista *Aux = lista->cabeca;
-    while (quantidade > 0 && Aux != NULL) {
+    while (quantidade > 0 && Aux != NULL)
+    {
         // verificar se a pilha de blocos do no atual nao esta vazia
-        while (quantidade > 0 && Count(Aux->blocos) > 0) {
+        while (quantidade > 0 && Count(Aux->blocos) > 0)
+        {
             int bloco = Pop(Aux->blocos);
             printf("Bloco alocado: %d\n", bloco);
             quantidade--;
         }
         // se a pilha de blocos do no atual estiver vazia, ir para o proximo no
-        if (Count(Aux->blocos) == 0){
+        if (Count(Aux->blocos) == 0)
+        {
             RemoverInicio(lista);
             Aux = lista->cabeca;
         }
     }
 }
 
-void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorioPai) {
+void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorioPai)
+{
     // Verificar blocos livres
-    if (quantidadeBlocosLivres(lista) < 2) {
+    if (quantidadeBlocosLivres(lista) < 2)
+    {
         printf("Nao ha espaco suficiente\n");
         return;
     }
 
     // Verificar limite de entradas do diretório pai
-    if (disco[blocoDiretorioPai].diretorio.quantidadeEntradas >= 10) {
+    if (disco[blocoDiretorioPai].diretorio.quantidadeEntradas >= 10)
+    {
         printf("Erro: diretorio cheio!\n");
         return;
     }
@@ -346,18 +427,19 @@ void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int bl
     disco[enderecoBlocoInode].inode.enderecosDiretos[0] = blocoArquivoDiretorio;
 }
 
-
 /*
  - TO DO
  - VERIFICAR BLOCOS INDIRETOS SIMPLES, DUPLOS E TRIPLOS
 */
-void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorio) {
+void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorio)
+{
     // Cada bloco tem 10 bytes
     int quantidadeBlocos = tamanhoEmBytes / 10;
     if (tamanhoEmBytes % 10 != 0)
         quantidadeBlocos++;
 
-    if (quantidadeBlocos + 1 > quantidadeBlocosLivres(lista)) {
+    if (quantidadeBlocos + 1 > quantidadeBlocosLivres(lista))
+    {
         printf("Nao ha espaco suficiente\n");
         return;
     }
@@ -378,14 +460,16 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
 
     int quantidadeAlocada = 0;
 
-    while (quantidade > 0 && Aux != NULL) {
+    while (quantidade > 0 && Aux != NULL)
+    {
         // verificar se a pilha de blocos do no atual nao esta vazia
-        while (quantidade > 0 && Count(Aux->blocos) > 0) {
-            //if (quantidadeAlocada < MAX_ENDERECOS_DIRETOS_INODE) {
+        while (quantidade > 0 && Count(Aux->blocos) > 0)
+        {
+            // if (quantidadeAlocada < MAX_ENDERECOS_DIRETOS_INODE) {
             int bloco = Pop(Aux->blocos);
             disco[enderecoBlocoInode].inode.enderecosDiretos[quantidadeBlocos - quantidade] = bloco;
             disco[bloco].tipo = ARQUIVO;
-                // printf("Bloco alocado: %d\n", bloco);
+            // printf("Bloco alocado: %d\n", bloco);
             // } else if (quantidadeBlocos > MAX_ENDERECOS_DIRETOS_INODE && quantidadeBlocos <= (MAX_ENDERECOS_DIRETOS_INODE + MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE))
             // {   // determinar se vai usar bloco de enderecos simples, duplo ou triplo
             //     // alocar bloco de enderecos simples
@@ -398,7 +482,7 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
             //     int bloco = Pop(Aux->blocos);
             //     disco[disco[enderecoBlocoInode].inode.enderecoSimplesIndireto].inodeEnderecoSimples.enderecos[disco[disco[enderecoBlocoInode].inode.enderecoSimplesIndireto].inodeEnderecoSimples.quantidadeEnderecos++] = bloco;
             //     disco[bloco].tipo = ARQUIVO;
-            // } else if (quantidadeBlocos > (MAX_ENDERECOS_DIRETOS_INODE + MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE) && quantidadeBlocos < MAX_ENDERECOS_DIRETOS_INODE * MAX_ENDERECOS_INDIRETOS_DUPLO_INODE) 
+            // } else if (quantidadeBlocos > (MAX_ENDERECOS_DIRETOS_INODE + MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE) && quantidadeBlocos < MAX_ENDERECOS_DIRETOS_INODE * MAX_ENDERECOS_INDIRETOS_DUPLO_INODE)
             // {   // Nó duplo indireto
             //     // alocar bloco de enderecos duplos
             //     if (disco[enderecoBlocoInode].inode.enderecosDuploIndireto == -1) {
@@ -408,8 +492,8 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
             //         disco[blocoEnderecoDuplo].inodeEnderecoDuplo.quantidadeEnderecos = 0;
             //     }
             //     // alocar bloco de enderecos simples dentro do bloco de enderecos duplos
-            //     if (disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.quantidadeEnderecos == 0 || 
-            //         disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.enderecos[disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.quantidadeEnderecos - 1] == MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE) 
+            //     if (disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.quantidadeEnderecos == 0 ||
+            //         disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.enderecos[disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.quantidadeEnderecos - 1] == MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE)
             //     {
             //         int blocoEnderecoSimples = alocarBloco(lista);
             //         disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.enderecos[disco[disco[enderecoBlocoInode].inode.enderecosDuploIndireto].inodeEnderecoDuplo.quantidadeEnderecos++] = blocoEnderecoSimples;
@@ -426,59 +510,72 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
             // quantidadeAlocada++;
         }
         // se a pilha de blocos do no atual estiver vazia, ir para o proximo no
-        if (Count(Aux->blocos) == 0){
+        if (Count(Aux->blocos) == 0)
+        {
             RemoverInicio(lista);
             Aux = lista->cabeca;
         }
     }
 }
 
-void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista) {
+void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista)
+{
     // buscar o arquivo na entrada de diretorio
     int i = 0;
     int blocoInodeArquivo = -1;
 
-    for (i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++) {
-        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0) {
+    for (i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
+    {
+        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0)
+        {
             blocoInodeArquivo = disco[blocoAtual].diretorio.entradas[i].bloco;
             break;
         }
     }
-    // ir no inode 
-    if (blocoInodeArquivo == -1) {
+    // ir no inode
+    if (blocoInodeArquivo == -1)
+    {
         printf("Arquivo nao encontrado\n");
         return;
     }
     // liberar os blocos do arquivo
-    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
-        if (disco[blocoInodeArquivo].inode.enderecosDiretos[j] != -1) {
+    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++)
+    {
+        if (disco[blocoInodeArquivo].inode.enderecosDiretos[j] != -1)
+        {
             realocarBlocos(lista, disco[blocoInodeArquivo].inode.enderecosDiretos[j]);
             disco[disco[blocoInodeArquivo].inode.enderecosDiretos[j]].tipo = FREE;
             disco[blocoInodeArquivo].inode.enderecosDiretos[j] = -1;
         }
     }
-    // remover a entrada do diretorio    
-    for (int j = i; j < disco[blocoAtual].diretorio.quantidadeEntradas - 1; j++) {
+    // remover a entrada do diretorio
+    for (int j = i; j < disco[blocoAtual].diretorio.quantidadeEntradas - 1; j++)
+    {
         disco[blocoAtual].diretorio.entradas[j] = disco[blocoAtual].diretorio.entradas[j + 1];
     }
     disco[blocoAtual].diretorio.quantidadeEntradas--;
 }
 
-void listarDiretorio(Diretorio diretorio) {
+void listarDiretorio(Diretorio diretorio)
+{
     printf("\n");
-    for (int i = 2; i < diretorio.quantidadeEntradas; i++) {
+    for (int i = 2; i < diretorio.quantidadeEntradas; i++)
+    {
         printf("%s\t", diretorio.entradas[i].nome);
     }
     printf("\n");
 }
 
-int split_path(char *path, char **parts, int max_parts) {
-    if (path == NULL || parts == NULL || max_parts <= 0) {
+int split_path(char *path, char **parts, int max_parts)
+{
+    if (path == NULL || parts == NULL || max_parts <= 0)
+    {
         return -1; // Erro: entradas inválidas
     }
 
     // A primeira barra pode ser ignorada, a menos que o caminho seja apenas "/"
-    if (strcmp(path, "/") == 0) {
+    if (strcmp(path, "/") == 0)
+    {
         parts[0] = "/";
         return 1;
     }
@@ -486,7 +583,8 @@ int split_path(char *path, char **parts, int max_parts) {
     int count = 0;
     char *token = strtok(path, "/");
 
-    while (token != NULL && count < max_parts) {
+    while (token != NULL && count < max_parts)
+    {
         parts[count] = token;
         count++;
         token = strtok(NULL, "/");
@@ -495,30 +593,38 @@ int split_path(char *path, char **parts, int max_parts) {
     return count;
 }
 
-int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco) {
+int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco)
+{
     // buscar no diretorio atual o nome do diretorio a ser aberto
     int blocoDiretorio = -1;
 
-    char *path = new char[strlen(caminho) + 1];;
+    char *path = new char[strlen(caminho) + 1];
+    ;
     strcpy(path, caminho);
     char *parts[10];
     int num_parts;
 
     num_parts = split_path(path, parts, 10);
-    
+
     int i = 0, j;
-    while (i < num_parts && blocoAtual != -1) {
+    while (i < num_parts && blocoAtual != -1)
+    {
         // buscar o nome do diretorio na lista de entradas do diretorio atual
         // se não encontrar, retornar diretório inválido
         int achou = 0;
         j = 0;
-        while (j < disco[blocoAtual].diretorio.quantidadeEntradas && !achou) {
-            if (strcmp(disco[blocoAtual].diretorio.entradas[j].nome, parts[i]) == 0) {
+        while (j < disco[blocoAtual].diretorio.quantidadeEntradas && !achou)
+        {
+            if (strcmp(disco[blocoAtual].diretorio.entradas[j].nome, parts[i]) == 0)
+            {
                 int blocoInodeDiretorio = disco[blocoAtual].diretorio.entradas[j].bloco;
-                if (strcmp(parts[i], "..") != 0 && strcmp(parts[i], ".") != 0) {
+                if (strcmp(parts[i], "..") != 0 && strcmp(parts[i], ".") != 0)
+                {
                     blocoDiretorio = disco[blocoInodeDiretorio].inode.enderecosDiretos[0];
                     blocoAtual = blocoDiretorio;
-                } else {
+                }
+                else
+                {
                     blocoDiretorio = disco[blocoAtual].diretorio.entradas[j].bloco;
                     blocoAtual = blocoDiretorio;
                 }
@@ -527,7 +633,8 @@ int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco) {
             j++;
         }
 
-        if (!achou) {
+        if (!achou)
+        {
             printf("Diretorio invalido\n");
             return -1;
         }
@@ -538,37 +645,43 @@ int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco) {
     return blocoDiretorio;
 }
 
-void pwd(int blocoAtual, int blocoEntradaDiretorio, Bloco *disco) {
+void pwd(int blocoAtual, int blocoEntradaDiretorio, Bloco *disco)
+{
     // imprimir o caminho absoluto do diretorio atual
     // Ir buscando o bloco pai ate chegar no bloco raiz
-    if (blocoEntradaDiretorio != -1) {
-        for (int i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++) {
+    if (blocoEntradaDiretorio != -1)
+    {
+        for (int i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
+        {
             if (disco[blocoAtual].diretorio.entradas[i].bloco == blocoEntradaDiretorio)
                 printf("%s/", disco[blocoAtual].diretorio.entradas[i].nome);
         }
     }
-    
-    if (blocoAtual == 0) {
+
+    if (blocoAtual == 0)
+    {
         return;
     }
 
-    for (int i = 0; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++) {
-        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, "..") == 0) {
+    for (int i = 0; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
+    {
+        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, "..") == 0)
+        {
             int blocoPai = disco[blocoAtual].diretorio.entradas[i].bloco;
             pwd(blocoPai, blocoAtual, disco);
             break;
         }
     }
-} 
+}
 
 int main(void)
 {
     // INFORMAR QUANTIDADE DE BLOCOS
-    // int quantidadeBlocos = 20;  
-    int quantidadeBlocos = 1000;  
+    // int quantidadeBlocos = 20;
+    int quantidadeBlocos = 1000;
 
-    //printf("Informe a quantidade de blocos: ");
-    //scanf("%d", &quantidadeBlocos);
+    // printf("Informe a quantidade de blocos: ");
+    // scanf("%d", &quantidadeBlocos);
 
     Bloco disco[quantidadeBlocos];
 
@@ -582,7 +695,6 @@ int main(void)
     // INICIALIZAR O DIRETORIO RAIZ
     int blocoRaiz = alocarBloco(listaBlocosLivres);
     inicializarDiretorio(disco, blocoRaiz, blocoRaiz);
-
 
     // ##### INSERCOES DE TESTE #####
     // Criação de um arquivo
