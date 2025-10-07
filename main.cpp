@@ -302,24 +302,42 @@ void alocarBlocosEInserirInode(ListaBlocosLivres *lista, int quantidade)
 }
 
 void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorioPai) {
-    // validar quantidade de blocos livres
+    // Verificar blocos livres
     if (quantidadeBlocosLivres(lista) < 2) {
         printf("Nao ha espaco suficiente\n");
         return;
     }
-    // alocar um bloco para o inode
-    int enderecoBlocoInode = alocarBloco(lista);
-    disco[enderecoBlocoInode].tipo = DIRETORIO;
-    // inserir inode do diretorio pai
-    disco[blocoDiretorioPai].diretorio.entradas[disco[blocoDiretorioPai].diretorio.quantidadeEntradas].bloco = enderecoBlocoInode;
-    strcpy(disco[blocoDiretorioPai].diretorio.entradas[disco[blocoDiretorioPai].diretorio.quantidadeEntradas++].nome, nome);
 
+    // Verificar limite de entradas do diretório pai
+    if (disco[blocoDiretorioPai].diretorio.quantidadeEntradas >= 10) {
+        printf("Erro: diretorio cheio!\n");
+        return;
+    }
+
+    // Alocar bloco para o inode do novo diretório
+    int enderecoBlocoInode = alocarBloco(lista);
+    disco[enderecoBlocoInode].tipo = INODE;
+
+    // Inicializar inode
+    for (int i = 0; i < 10; i++)
+        disco[enderecoBlocoInode].inode.enderecosDiretos[i] = -1;
+
+    // Inserir no diretório pai
+    int idx = disco[blocoDiretorioPai].diretorio.quantidadeEntradas;
+    strcpy(disco[blocoDiretorioPai].diretorio.entradas[idx].nome, nome);
+    disco[blocoDiretorioPai].diretorio.entradas[idx].bloco = enderecoBlocoInode;
+    disco[blocoDiretorioPai].diretorio.quantidadeEntradas++;
+
+    // Alocar bloco de dados do novo diretório
     int blocoArquivoDiretorio = alocarBloco(lista);
-    // inicializar o diretorio (inserir . e ..)
+
+    // Inicializar novo diretório (. e ..)
     inicializarDiretorio(disco, blocoArquivoDiretorio, blocoDiretorioPai);
 
+    // Apontar no inode do diretório novo
     disco[enderecoBlocoInode].inode.enderecosDiretos[0] = blocoArquivoDiretorio;
 }
+
 
 /*
  - TO DO
