@@ -5,6 +5,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <time.h>
 
 #define MAX_ENDERECOS_DIRETOS_INODE 5
 #define MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE 5
@@ -14,9 +15,15 @@
 
 struct inode
 {
+    char tipo;
     int contadorHardLinks;
     int tamanho;
     char protecao[11];
+    char data[11];
+    char hora[6];
+    char usuario[20];
+    char grupo[20];
+
     int enderecosDiretos[MAX_ENDERECOS_DIRETOS_INODE];
     int enderecoSimplesIndireto;
     int enderecosDuploIndireto;
@@ -104,25 +111,29 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
 void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista);
 int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco);
 void alterarPermissao(char *operacao, char *escopo, char *modos, char *nome, int blocoAtual, Bloco *disco);
-void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco); 
+void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco);
 int temPermissao(Inode inode, char tipo);
 
-void inicializarInode(Inode &inode)
+void inicializarInode(Inode *inode)
 {
-    inode.contadorHardLinks = 0;
-    inode.tamanho = 0;
-    inode.protecao[0] = '\0';
+    inode->tipo = '-';
+    inode->protecao[0] = '\0';
+    strcpy(inode->protecao, "rwxr-xr-x");
 
-    strcpy(inode.protecao, "rwxr-xr-x");
+    inode->data[0] = '\0';
+    inode->hora[0] = '\0';
+    strcpy(inode->usuario, "root");
+    strcpy(inode->grupo, "root");
+
+    inode->tamanho = 0;
+    inode->contadorHardLinks = 0;
 
     for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++)
-    {
-        inode.enderecosDiretos[j] = -1;
-    }
-    inode.enderecosDiretos[0] = -1;
-    inode.enderecoSimplesIndireto = -1;
-    inode.enderecosDuploIndireto = -1;
-    inode.enderecosTriploIndireto = -1;
+        inode->enderecosDiretos[j] = -1;
+
+    inode->enderecoSimplesIndireto = -1;
+    inode->enderecosDuploIndireto = -1;
+    inode->enderecosTriploIndireto = -1;
 }
 
 void inicializarDiretorio(Diretorio &diretorio)
@@ -141,20 +152,19 @@ void inicializarBlocos(Bloco *disco, int quantidadeBlocos)
     {
         disco[i].tipo = FREE;
         inicializarDiretorio(disco[i].diretorio);
-        inicializarInode(disco[i].inode);
+        inicializarInode(&disco[i].inode);
     }
 }
 
 void inicializarDiretorio(Bloco *disco, int bloco, int blocoPai)
 {
-    disco[bloco].tipo = DIRETORIO; // <- estava ARQUIVO antes
+    disco[bloco].tipo = DIRETORIO;
     disco[bloco].diretorio.quantidadeEntradas = 2;
     strcpy(disco[bloco].diretorio.entradas[0].nome, ".");
     disco[bloco].diretorio.entradas[0].bloco = bloco;
     strcpy(disco[bloco].diretorio.entradas[1].nome, "..");
     disco[bloco].diretorio.entradas[1].bloco = blocoPai;
 
-    // zera o resto para evitar lixo
     for (int i = 2; i < 10; i++)
     {
         disco[bloco].diretorio.entradas[i].nome[0] = '\0';
@@ -284,8 +294,19 @@ void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int bl
     disco[enderecoBlocoInode].tipo = INODE;
 
     // Inicializar inode
+    Inode *inode = &disco[enderecoBlocoInode].inode;
+    inode->tamanho = 0;
+    inode->contadorHardLinks = 1;
+    inode->tipo = 'd';
+
     for (int i = 0; i < 10; i++)
-        disco[enderecoBlocoInode].inode.enderecosDiretos[i] = -1;
+        inode->enderecosDiretos[i] = -1;
+
+    // Adicionar data e hora
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(inode->data, sizeof(inode->data), "%d/%m/%Y", tm_info);
+    strftime(inode->hora, sizeof(inode->hora), "%H:%M", tm_info);
 
     // Inserir no diretório pai
     int idx = disco[blocoDiretorioPai].diretorio.quantidadeEntradas;
@@ -300,9 +321,8 @@ void inserirDiretorio(char *nome, ListaBlocosLivres *lista, Bloco *disco, int bl
     inicializarDiretorio(disco, blocoArquivoDiretorio, blocoDiretorioPai);
 
     // Apontar no inode do diretório novo
-    disco[enderecoBlocoInode].inode.enderecosDiretos[0] = blocoArquivoDiretorio;
+    inode->enderecosDiretos[0] = blocoArquivoDiretorio;
 }
-
 /*
  - TO DO
  - VERIFICAR BLOCOS INDIRETOS SIMPLES, DUPLOS E TRIPLOS
@@ -331,8 +351,15 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
     NoLista *Aux = lista->cabeca;
     int quantidade = quantidadeBlocos;
 
-    disco[enderecoBlocoInode].inode.tamanho = tamanhoEmBytes;
-    disco[enderecoBlocoInode].inode.contadorHardLinks = 1;
+    Inode *inode = &disco[enderecoBlocoInode].inode;
+    inode->tamanho = tamanhoEmBytes;
+    inode->contadorHardLinks = 1;
+    inode->tipo = '-';
+
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(inode->data, sizeof(inode->data), "%d/%m/%Y", tm_info);
+    strftime(inode->hora, sizeof(inode->hora), "%H:%M", tm_info);
 
     int quantidadeAlocada = 0;
 
@@ -343,7 +370,7 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
         {
             // if (quantidadeAlocada < MAX_ENDERECOS_DIRETOS_INODE) {
             int bloco = Pop(Aux->blocos);
-            disco[enderecoBlocoInode].inode.enderecosDiretos[quantidadeBlocos - quantidade] = bloco;
+            inode->enderecosDiretos[quantidadeBlocos - quantidade] = bloco;
             disco[bloco].tipo = ARQUIVO;
             // printf("Bloco alocado: %d\n", bloco);
             // } else if (quantidadeBlocos > MAX_ENDERECOS_DIRETOS_INODE && quantidadeBlocos <= (MAX_ENDERECOS_DIRETOS_INODE + MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE))
@@ -565,8 +592,13 @@ int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco)
 
 void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco)
 {
-    printf("\nPermissões\tTamanho\tLinks\tNome\n");
-    printf("-----------\t-------\t------\t----\n");
+    printf("%-5s %-11s %-6s %-20s %-8s %-8s %10s %-12s %s\n",
+           "Tipo ", "Permissões ", "Links ", "       Nome       ", "Usuário ", " Grupo ",
+           "  Tamanho", "    Data    ", "Hora");
+
+    printf("%-5s %-11s %-6s %-20s %-8s %-8s %10s %-12s %s\n",
+           "-----", "-----------", "------", "--------------------", "--------", "--------",
+           "----------", "------------", "-----");
 
     for (int i = 2; i < diretorio.quantidadeEntradas; i++)
     {
@@ -575,22 +607,24 @@ void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco)
         if (disco[blocoInode].tipo == INODE)
         {
             Inode inode = disco[blocoInode].inode;
-            char perm[11];
+            char tipo;
+            char perm[10];
 
-            if (inode.protecao[0])
-            {
-                strcpy(perm, inode.protecao);
-            }
-            else
-            {
-                strcpy(perm, "rwxr-xr--");
-            }
-
-            printf("%s\t%dB\t%d\t%s\n", perm, inode.tamanho, inode.contadorHardLinks, diretorio.entradas[i].nome);
+            printf("%-5c %-11s %-6d %-20s %-8s %-8s %10d %-12s %s\n",
+                   inode.tipo,
+                   inode.protecao,
+                   inode.contadorHardLinks,
+                   diretorio.entradas[i].nome,
+                   inode.usuario[0] ? inode.usuario : "root",
+                   inode.grupo[0] ? inode.grupo : "root",
+                   inode.tamanho,
+                   inode.data[0] ? inode.data : "00/00/0000",
+                   inode.hora[0] ? inode.hora : "00:00");
         }
         else
         {
-            printf("----------\t--\t--\t%s\n", diretorio.entradas[i].nome);
+            printf("-    ----------  -----  --------  --------  -------  ----------  -----  %s (bloco não é inode)\n",
+                   diretorio.entradas[i].nome);
         }
     }
     printf("\n");
@@ -641,21 +675,21 @@ void alterarPermissao(char *operacao, char *escopo, char *modos, char *nome, int
     for (int i = 0; modos[i] != '\0'; i++)
     {
         char m = modos[i];
-        int offset = -1;
+        int pos = -1;
 
         if (m == 'r')
-            offset = 0;
+            pos = 0;
         else if (m == 'w')
-            offset = 1;
+            pos = 1;
         else if (m == 'x')
-            offset = 2;
+            pos = 2;
         else
             continue;
 
         if (adicionar)
-            inode->protecao[inicio + offset] = m;
+            inode->protecao[inicio + pos] = m;
         else if (remover)
-            inode->protecao[inicio + offset] = '-';
+            inode->protecao[inicio + pos] = '-';
     }
 
     printf("Permissões de '%s' atualizadas: %s\n", nome, inode->protecao);
@@ -683,12 +717,10 @@ void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, B
 {
     printf("\n===== TESTES AUTOMÁTICOS DE PERMISSÕES =====\n\n");
 
- 
-
     // Criar inode para o diretório raiz para poder testar permissões
     int blocoInodeRaiz = alocarBloco(listaBlocosLivres);
     disco[blocoInodeRaiz].tipo = INODE;
-    inicializarInode(disco[blocoInodeRaiz].inode);
+    inicializarInode(&disco[blocoInodeRaiz].inode);
 
     // Adicionar entrada "." apontando para o inode do diretório raiz
     disco[blocoRaiz].diretorio.entradas[0].bloco = blocoInodeRaiz;
@@ -787,7 +819,7 @@ void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, B
     // 8. Testa remoção de arquivo sem permissão de escrita no diretório
     printf("\n>> Removendo permissão w do diretório raiz:\n");
     printf(">> chmod -u w (diretório raiz)\n");
-    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w do user
+    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w do root
     printf("Permissões do diretório raiz atualizadas: %s\n", disco[blocoInodeRaiz].inode.protecao);
 
     printf("\n>> Tentando remover testeFile.txt (sem w no diretório raiz):\n");
@@ -908,7 +940,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
         comando = strtok(linha, " ");
         if (comando == NULL)
             continue;
-
+ 
         // ======== CD ========
         if (strcmp(comando, "cd") == 0)
         {
@@ -916,64 +948,66 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
             if (!arg1)
             {
                 printf("Uso: cd <caminho_diretorio>\n");
-                continue;
             }
-
-            // cd /
-            if (strcmp(arg1, "/") == 0)
+            else if (strcmp(arg1, "/") == 0)
             {
                 blocoAtual = 0;
                 strcpy(caminho, "/");
-                continue;
-            }
-
-            // cd ..
-            if (strcmp(arg1, "..") == 0)
-            {
-                char *ultimaBarra = strrchr(caminho, '/');
-                if (ultimaBarra && ultimaBarra != caminho)
-                    *ultimaBarra = '\0';
-                else
-                    strcpy(caminho, "/");
-
-                int blocoPai = disco[blocoAtual].diretorio.entradas[1].bloco;
-                blocoAtual = blocoPai;
-                continue;
-            }
-
-            // Localiza destino
-            int blocoDestino = localizarInodePorNome(arg1, blocoAtual, disco);
-            if (blocoDestino == -1)
-            {
-                printf("Diretório não encontrado: %s\n", arg1);
-                continue;
-            }
-
-            // Verifica permissão no destino
-            if (!temPermissao(disco[blocoDestino].inode, 'x'))
-            {
-                printf("Permissão negada: sem permissão de execução neste diretório.\n");
-                continue;
-            }
-
-            int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
-            if (blocoDiretorio >= 0)
-            {
-                blocoAtual = blocoDiretorio;
-
-                // Atualiza caminho atual
-                if (strcmp(caminho, "/") == 0)
-                    snprintf(caminho, sizeof(caminho), "/%s", arg1);
-                else
-                    snprintf(caminho + strlen(caminho),
-                             sizeof(caminho) - strlen(caminho), "/%s", arg1);
             }
             else
-            {
-                printf("Diretório inválido: %s\n", arg1);
+            { 
+                size_t len = strlen(arg1);
+                if (len > 0 && arg1[len - 1] == '/')
+                    arg1[len - 1] = '\0';
+
+                if (strcmp(arg1, "..") == 0)
+                {
+                    char *ultimaBarra = strrchr(caminho, '/');
+                    if (ultimaBarra && ultimaBarra != caminho)
+                        *ultimaBarra = '\0';
+                    else
+                        strcpy(caminho, "/");
+
+                    int blocoPai = disco[blocoAtual].diretorio.entradas[1].bloco;
+                    blocoAtual = blocoPai;
+                }
+                else
+                {
+                    int blocoInodeDestino = localizarInodePorNome(arg1, blocoAtual, disco);
+
+                    if (blocoInodeDestino == -1)
+                    {
+                        printf("Diretório não encontrado: %s\n", arg1);
+                    }
+                    else if (disco[blocoInodeDestino].inode.tipo != 'd')
+                    {
+                        printf("Erro: '%s' não é um diretório\n", arg1);
+                    }
+                    else if (!temPermissao(disco[blocoInodeDestino].inode, 'x'))
+                    {
+                        printf("Permissão negada: sem permissão de execução neste diretório.\n");
+                    }
+                    else
+                    {
+                        int blocoDiretorio = disco[blocoInodeDestino].inode.enderecosDiretos[0];
+                        if (blocoDiretorio >= 0)
+                        {
+                            blocoAtual = blocoDiretorio;
+
+                            if (strcmp(caminho, "/") == 0)
+                                snprintf(caminho, sizeof(caminho), "/%s", arg1);
+                            else
+                                snprintf(caminho + strlen(caminho),
+                                         sizeof(caminho) - strlen(caminho), "/%s", arg1);
+                        }
+                        else
+                        {
+                            printf("Erro ao acessar diretório: %s\n", arg1);
+                        }
+                    }
+                }
             }
         }
-
         // ======== MKDIR ========
         else if (strcmp(comando, "mkdir") == 0)
         {
