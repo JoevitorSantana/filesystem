@@ -103,8 +103,9 @@ int abrirDiretorio(char *caminho, int blocoAtual, Bloco *disco);
 void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bloco *disco, int blocoDiretorio);
 void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista);
 int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco);
-void alterarPermissao(char *nome, char *novaPermissao, int blocoAtual, Bloco *disco);
-void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco);
+void alterarPermissao(char *operacao, char *escopo, char *modos, char *nome, int blocoAtual, Bloco *disco);
+void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco); 
+int temPermissao(Inode inode, char tipo);
 
 void inicializarInode(Inode &inode)
 {
@@ -159,150 +160,6 @@ void inicializarDiretorio(Bloco *disco, int bloco, int blocoPai)
         disco[bloco].diretorio.entradas[i].nome[0] = '\0';
         disco[bloco].diretorio.entradas[i].bloco = -1;
     }
-}
-
-void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
-{
-    char linha[256];
-    char *comando;
-    char *arg1, *arg2;
-    char caminho[100] = "/";
-    int blocoAtual = 0; // bloco do diretorio raiz
-
-    do
-    {
-        // textcolor(GREEN);
-        printf("root@localhost");
-        // textcolor(WHITE);
-        printf(":");
-        // textcolor(LIGHTBLUE);
-        printf("%s", caminho);
-        // textcolor(WHITE);
-        printf("$ ");
-
-        if (fgets(linha, sizeof(linha), stdin) == NULL)
-            break;
-
-        // Remove a quebra de linha ('\n') adicionada por fgets
-        linha[strcspn(linha, "\n")] = '\0';
-
-        // Separa a linha em tokens (comando e parâmetros)
-        comando = strtok(linha, " ");
-
-        // Se a linha estiver vazia, continua o loop
-        if (comando == NULL)
-            continue;
-
-        if (strcmp(comando, "cd") == 0)
-        {
-            arg1 = strtok(NULL, " ");
-            if (arg1 != NULL)
-            {
-                int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
-                if (blocoDiretorio >= 0)
-                {
-                    blocoAtual = blocoDiretorio;
-                }
-                else
-                    printf("Diretório não encontrado: %s\n", arg1);
-            }
-            else
-                printf("Uso: cd <caminho_diretorio>\n");
-        }
-        else if (strcmp(comando, "mkdir") == 0)
-        {
-            arg1 = strtok(NULL, " ");
-            if (arg1 != NULL)
-                inserirDiretorio(arg1, listaBlocosLivres, disco, blocoAtual);
-            else
-                printf("Uso: mkdir <nome_diretorio>\n");
-        }
-        else if (strcmp(comando, "touch") == 0)
-        {
-            arg1 = strtok(NULL, " ");
-            arg2 = strtok(NULL, " ");
-            if (arg1 != NULL && arg2 != NULL)
-            {
-                int tamanho = atoi(arg2);
-                inserirArquivo(arg1, tamanho, listaBlocosLivres, disco, blocoAtual);
-            }
-            else
-                printf("Uso: touch <nome_arquivo> <tamanho_em_bytes>\n");
-        }
-        else if (strcmp(comando, "rm") == 0)
-        {
-            arg1 = strtok(NULL, " ");
-            if (arg1 != NULL)
-                removerArquivo(arg1, blocoAtual, disco, listaBlocosLivres);
-            else
-                printf("Uso: rm <nome_arquivo>\n");
-        }
-        else if (strcmp(comando, "chmod") == 0)
-        {
-            arg1 = strtok(NULL, " "); // nome do arquivo
-            arg2 = strtok(NULL, " "); // nova permissão
-            if (arg1 != NULL && arg2 != NULL)
-            {
-                alterarPermissao(arg1, arg2, blocoAtual, disco);
-            }
-            else
-            {
-                printf("Uso: chmod <nome_arquivo> <nova_permissao>\n");
-            }
-        }
-        else
-        {
-            pid_t pid = fork();
-            if (pid < 0)
-            {
-                perror("Erro ao criar processo filho");
-                continue;
-            }
-            else if (pid == 0)
-            {
-                if (strcmp(comando, "ls") == 0)
-                {
-                    arg1 = strtok(NULL, " ");
-                    if (arg1 != NULL && strcmp(arg1, "-l") == 0)
-                        listarDiretorioDetalhado(disco[blocoAtual].diretorio, disco);
-                    else if (arg1 != NULL)
-                        printf("Uso: ls [-l]\n");
-                    else
-                        listarDiretorio(disco[blocoAtual].diretorio);
-                }
-                else if (strcmp(comando, "vi") == 0)
-                {
-                    printf("Simulação de vi (não implementada)\n");
-                }
-                else if (strcmp(comando, "rmdir") == 0)
-                {
-                    printf("Simulação de rmdir (não implementada)\n");
-                }
-                else if (strcmp(comando, "link") == 0)
-                {
-                    printf("Simulação de link (não implementada)\n");
-                }
-                else if (strcmp(comando, "unlink") == 0)
-                {
-                    printf("Simulação de unlink (não implementada)\n");
-                }
-                else if (strcmp(comando, "chmod") == 0)
-                {
-                    printf("Simulação de chmod (não implementada)\n");
-                }
-                else
-                {
-                    printf("Comando não encontrado: %s\n", comando);
-                }
-
-                _exit(0);
-            }
-            else
-            {
-                wait(NULL); // espera o filho terminar
-            }
-        }
-    } while (strcmp(comando, "exit") != 0);
 }
 
 void inicializarListaBlocosLivres(ListaBlocosLivres *lista, int quantidadeBlocos)
@@ -575,78 +432,6 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
     disco[blocoAtual].diretorio.quantidadeEntradas--;
 }
 
-int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco)
-{
-    for (int i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
-    {
-        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0)
-        {
-            return disco[blocoAtual].diretorio.entradas[i].bloco;
-        }
-    }
-
-    return -1;
-}
-
-void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco)
-{
-    printf("\nPermissões\tTamanho\tLinks\tNome\n");
-    printf("-----------\t-------\t------\t----\n");
-
-    for (int i = 2; i < diretorio.quantidadeEntradas; i++)
-    {
-        int blocoInode = diretorio.entradas[i].bloco;
-
-        if (disco[blocoInode].tipo == INODE)
-        {
-            Inode inode = disco[blocoInode].inode;
-            char perm[11]; // buffer local (10 chars + \0)
-            
-            if (inode.protecao[0]) {
-                strcpy(perm, inode.protecao);
-            } else {
-                strcpy(perm, "rwxr-xr--");
-            }
-            
-            printf("%s\t%dB\t%d\t%s\n", perm, inode.tamanho, inode.contadorHardLinks, diretorio.entradas[i].nome);
-        }
-        else
-        {
-            printf("----------\t--\t--\t%s\n", diretorio.entradas[i].nome);
-        }
-    }
-    printf("\n");
-}
-
-void alterarPermissao(char *nome, char *novaPermissao, int blocoAtual, Bloco *disco)
-{
-    int blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
-    if (blocoInode == -1)
-    {
-        printf("Arquivo ou diretório não encontrado.\n");
-        return;
-    }
-
-    if (strlen(novaPermissao) != 9)
-    {
-        printf("Permissão inválida. Use formato rwxr-xr-- (9 caracteres)\n");
-        return;
-    }
-
-    for (int i = 0; i < 9; i++)
-    {
-        char c = novaPermissao[i];
-        if (c != 'r' && c != 'w' && c != 'x' && c != '-')
-        {
-            printf("Permissão inválida. Use apenas caracteres r, w, x ou -.\n");
-            return;
-        }
-    }
-
-    strcpy(disco[blocoInode].inode.protecao, novaPermissao);
-    printf("Permissão alterada para %s\n", novaPermissao);
-}
-
 void listarDiretorio(Diretorio diretorio)
 {
     printf("\n");
@@ -765,6 +550,566 @@ void pwd(int blocoAtual, int blocoEntradaDiretorio, Bloco *disco)
     }
 }
 
+int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco)
+{
+    for (int i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++)
+    {
+        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0)
+        {
+            return disco[blocoAtual].diretorio.entradas[i].bloco;
+        }
+    }
+
+    return -1;
+}
+
+void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco)
+{
+    printf("\nPermissões\tTamanho\tLinks\tNome\n");
+    printf("-----------\t-------\t------\t----\n");
+
+    for (int i = 2; i < diretorio.quantidadeEntradas; i++)
+    {
+        int blocoInode = diretorio.entradas[i].bloco;
+
+        if (disco[blocoInode].tipo == INODE)
+        {
+            Inode inode = disco[blocoInode].inode;
+            char perm[11];
+
+            if (inode.protecao[0])
+            {
+                strcpy(perm, inode.protecao);
+            }
+            else
+            {
+                strcpy(perm, "rwxr-xr--");
+            }
+
+            printf("%s\t%dB\t%d\t%s\n", perm, inode.tamanho, inode.contadorHardLinks, diretorio.entradas[i].nome);
+        }
+        else
+        {
+            printf("----------\t--\t--\t%s\n", diretorio.entradas[i].nome);
+        }
+    }
+    printf("\n");
+}
+
+void alterarPermissao(char *operacao, char *escopo, char *modos, char *nome, int blocoAtual, Bloco *disco)
+{
+    if (!operacao || !escopo || !modos || !nome)
+    {
+        printf("Uso: chmod (+|-) (u|g|o) (rwx) <arquivo>\n");
+        return;
+    }
+
+    int blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
+    if (blocoInode == -1)
+    {
+        printf("Arquivo ou diretório não encontrado: %s\n", nome);
+        return;
+    }
+
+    Inode *inode = &disco[blocoInode].inode;
+
+    if (strlen(inode->protecao) < 9)
+        strcpy(inode->protecao, "rwxr-xr-x");
+
+    int inicio = 0;
+    if (strcmp(escopo, "u") == 0)
+        inicio = 0;
+    else if (strcmp(escopo, "g") == 0)
+        inicio = 3;
+    else if (strcmp(escopo, "o") == 0)
+        inicio = 6;
+    else
+    {
+        printf("Escopo inválido. Use u (usuário), g (grupo) ou o (outros).\n");
+        return;
+    }
+
+    int adicionar = (strcmp(operacao, "+") == 0);
+    int remover = (strcmp(operacao, "-") == 0);
+
+    if (!adicionar && !remover)
+    {
+        printf("Operação inválida. Use + ou -.\n");
+        return;
+    }
+
+    for (int i = 0; modos[i] != '\0'; i++)
+    {
+        char m = modos[i];
+        int offset = -1;
+
+        if (m == 'r')
+            offset = 0;
+        else if (m == 'w')
+            offset = 1;
+        else if (m == 'x')
+            offset = 2;
+        else
+            continue;
+
+        if (adicionar)
+            inode->protecao[inicio + offset] = m;
+        else if (remover)
+            inode->protecao[inicio + offset] = '-';
+    }
+
+    printf("Permissões de '%s' atualizadas: %s\n", nome, inode->protecao);
+}
+
+int temPermissao(Inode inode, char tipo)
+{
+    if (strlen(inode.protecao) < 3)
+        return 1;
+
+    switch (tipo)
+    {
+    case 'r':
+        return inode.protecao[0] == 'r';
+    case 'w':
+        return inode.protecao[1] == 'w';
+    case 'x':
+        return inode.protecao[2] == 'x';
+    default:
+        return 0;
+    }
+}
+
+void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, Bloco disco[])
+{
+    printf("\n===== TESTES AUTOMÁTICOS DE PERMISSÕES =====\n\n");
+
+ 
+
+    // Criar inode para o diretório raiz para poder testar permissões
+    int blocoInodeRaiz = alocarBloco(listaBlocosLivres);
+    disco[blocoInodeRaiz].tipo = INODE;
+    inicializarInode(disco[blocoInodeRaiz].inode);
+
+    // Adicionar entrada "." apontando para o inode do diretório raiz
+    disco[blocoRaiz].diretorio.entradas[0].bloco = blocoInodeRaiz;
+    disco[blocoInodeRaiz].inode.enderecosDiretos[0] = blocoRaiz;
+
+    // 1. Cria diretórios e arquivos de teste
+    inserirDiretorio("testeDir", listaBlocosLivres, disco, blocoRaiz);
+    inserirArquivo("testeFile.txt", 10, listaBlocosLivres, disco, blocoRaiz);
+
+    printf("-> Estado inicial:\n");
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 2. Remove permissão de escrita do dono (u-w)
+    printf("\n>> chmod -u w testeDir\n");
+    alterarPermissao("-", "u", "w", "testeDir", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 3. Tenta criar um arquivo dentro do diretório sem permissão de escrita
+    printf("\n>> Tentando criar arquivo em testeDir (sem w):\n");
+    int blocoTesteDir = abrirDiretorio("testeDir", blocoRaiz, disco);
+    int blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
+    if (temPermissao(disco[blocoInodeTesteDir].inode, 'w'))
+    {
+        inserirArquivo("ok.txt", 10, listaBlocosLivres, disco, blocoTesteDir);
+        printf("✅ Criado com sucesso (w presente)\n");
+    }
+    else
+    {
+        printf("🚫 Permissão negada (sem w no diretório)\n");
+    }
+
+    // 4. Remove permissão de execução e tenta cd
+    printf("\n>> chmod -u x testeDir\n");
+    alterarPermissao("-", "u", "x", "testeDir", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Tentando cd testeDir (sem x):\n");
+    blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
+    if (temPermissao(disco[blocoInodeTesteDir].inode, 'x'))
+    {
+        abrirDiretorio("testeDir", blocoRaiz, disco);
+        printf("✅ cd permitido\n");
+    }
+    else
+    {
+        printf("🚫 Permissão negada (sem x)\n");
+    }
+
+    // 5. Adiciona permissão novamente e tenta entrar
+    printf("\n>> chmod +u x testeDir\n");
+    alterarPermissao("+", "u", "x", "testeDir", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Tentando cd testeDir novamente:\n");
+    blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
+    if (temPermissao(disco[blocoInodeTesteDir].inode, 'x'))
+    {
+        abrirDiretorio("testeDir", blocoRaiz, disco);
+        printf("✅ cd permitido novamente (x restaurado)\n");
+    }
+    else
+    {
+        printf("🚫 Ainda bloqueado\n");
+    }
+
+    // 6. Modifica arquivo
+    printf("\n>> chmod -u r testeFile.txt\n");
+    alterarPermissao("-", "u", "r", "testeFile.txt", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Tentando ler testeFile.txt (sem r):\n");
+    if (temPermissao(disco[localizarInodePorNome("testeFile.txt", blocoRaiz, disco)].inode, 'r'))
+    {
+        printf("✅ Pode ler arquivo\n");
+    }
+    else
+    {
+        printf("🚫 Sem permissão de leitura\n");
+    }
+
+    // 7. Restaura leitura e testa novamente
+    printf("\n>> chmod +u r testeFile.txt\n");
+    alterarPermissao("+", "u", "r", "testeFile.txt", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Tentando ler testeFile.txt (com r restaurado):\n");
+    if (temPermissao(disco[localizarInodePorNome("testeFile.txt", blocoRaiz, disco)].inode, 'r'))
+    {
+        printf("✅ Pode ler arquivo\n");
+    }
+    else
+    {
+        printf("🚫 Sem permissão de leitura\n");
+    }
+
+    // 8. Testa remoção de arquivo sem permissão de escrita no diretório
+    printf("\n>> Removendo permissão w do diretório raiz:\n");
+    printf(">> chmod -u w (diretório raiz)\n");
+    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w do user
+    printf("Permissões do diretório raiz atualizadas: %s\n", disco[blocoInodeRaiz].inode.protecao);
+
+    printf("\n>> Tentando remover testeFile.txt (sem w no diretório raiz):\n");
+    if (!temPermissao(disco[blocoInodeRaiz].inode, 'w'))
+    {
+        printf("🚫 Permissão negada: não é possível remover arquivos aqui.\n");
+    }
+    else
+    {
+        removerArquivo("testeFile.txt", blocoRaiz, disco, listaBlocosLivres);
+        printf("✅ Arquivo removido\n");
+    }
+
+    // 9. Restaura permissão de escrita no diretório raiz
+    printf("\n>> Restaurando permissão w do diretório raiz\n");
+    printf(">> chmod +u w (diretório raiz)\n");
+    disco[blocoInodeRaiz].inode.protecao[1] = 'w'; // Restaura w do user
+    printf("Permissões do diretório raiz restauradas: %s\n", disco[blocoInodeRaiz].inode.protecao);
+
+    // 10. Cria novo diretório e arquivo para mais testes
+    printf("\n>> Criando testeDir2 e arquivo2.txt\n");
+    inserirDiretorio("testeDir2", listaBlocosLivres, disco, blocoRaiz);
+    inserirArquivo("arquivo2.txt", 20, listaBlocosLivres, disco, blocoRaiz);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 11. Remove todas as permissões do usuário
+    printf("\n>> chmod -u rwx arquivo2.txt\n");
+    alterarPermissao("-", "u", "rwx", "arquivo2.txt", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Verificando permissões de arquivo2.txt:\n");
+    int blocoInodeArquivo2 = localizarInodePorNome("arquivo2.txt", blocoRaiz, disco);
+    printf("   r: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'r') ? "✅" : "🚫");
+    printf("   w: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'w') ? "✅" : "🚫");
+    printf("   x: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'x') ? "✅" : "🚫");
+
+    // 12. Adiciona todas as permissões de volta
+    printf("\n>> chmod +u rwx arquivo2.txt\n");
+    alterarPermissao("+", "u", "rwx", "arquivo2.txt", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Verificando permissões de arquivo2.txt:\n");
+    printf("   r: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'r') ? "✅" : "🚫");
+    printf("   w: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'w') ? "✅" : "🚫");
+    printf("   x: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'x') ? "✅" : "🚫");
+
+    // 13. Testa permissões de grupo (g)
+    printf("\n>> chmod -g rx testeDir2\n");
+    alterarPermissao("-", "g", "rx", "testeDir2", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 14. Testa permissões de outros (o)
+    printf("\n>> chmod -o rwx testeDir2\n");
+    alterarPermissao("-", "o", "rwx", "testeDir2", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 15. Restaura todas as permissões
+    printf("\n>> chmod +g rx testeDir2\n");
+    alterarPermissao("+", "g", "rx", "testeDir2", blocoRaiz, disco);
+    printf(">> chmod +o rwx testeDir2\n");
+    alterarPermissao("+", "o", "rwx", "testeDir2", blocoRaiz, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 16. Teste final: mkdir sem permissão
+    printf("\n>> Removendo permissão w do diretório raiz\n");
+    printf(">> chmod -u w (diretório raiz)\n");
+    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w
+    printf("Permissões do diretório raiz: %s\n", disco[blocoInodeRaiz].inode.protecao);
+
+    printf("\n>> Tentando criar diretório testeDir3 (sem w):\n");
+    if (!temPermissao(disco[blocoInodeRaiz].inode, 'w'))
+    {
+        printf("🚫 Permissão negada: não é possível criar diretórios aqui.\n");
+    }
+    else
+    {
+        inserirDiretorio("testeDir3", listaBlocosLivres, disco, blocoRaiz);
+        printf("✅ Diretório criado\n");
+    }
+
+    // Restaura permissão
+    printf("\n>> Restaurando permissão w do diretório raiz\n");
+    printf(">> chmod +u w (diretório raiz)\n");
+    disco[blocoInodeRaiz].inode.protecao[1] = 'w'; // Restaura w
+    printf("Permissões do diretório raiz: %s\n", disco[blocoInodeRaiz].inode.protecao);
+
+    printf("\n>> Tentando criar diretório testeDir3 (com w):\n");
+    if (temPermissao(disco[blocoInodeRaiz].inode, 'w'))
+    {
+        inserirDiretorio("testeDir3", listaBlocosLivres, disco, blocoRaiz);
+        printf("✅ Diretório criado com sucesso\n");
+    }
+    else
+    {
+        printf("🚫 Permissão negada\n");
+    }
+
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n===== FIM DOS TESTES =====\n\n");
+}
+
+void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
+{
+    char linha[256];
+    char *comando;
+    char *arg1, *arg2;
+    char caminho[100] = "/";
+    int blocoAtual = 0; // diretório raiz
+
+    do
+    {
+        printf("root@localhost:%s$ ", caminho);
+        if (fgets(linha, sizeof(linha), stdin) == NULL)
+            break;
+
+        linha[strcspn(linha, "\n")] = '\0';
+        comando = strtok(linha, " ");
+        if (comando == NULL)
+            continue;
+
+        // ======== CD ========
+        if (strcmp(comando, "cd") == 0)
+        {
+            arg1 = strtok(NULL, " ");
+            if (!arg1)
+            {
+                printf("Uso: cd <caminho_diretorio>\n");
+                continue;
+            }
+
+            // cd /
+            if (strcmp(arg1, "/") == 0)
+            {
+                blocoAtual = 0;
+                strcpy(caminho, "/");
+                continue;
+            }
+
+            // cd ..
+            if (strcmp(arg1, "..") == 0)
+            {
+                char *ultimaBarra = strrchr(caminho, '/');
+                if (ultimaBarra && ultimaBarra != caminho)
+                    *ultimaBarra = '\0';
+                else
+                    strcpy(caminho, "/");
+
+                int blocoPai = disco[blocoAtual].diretorio.entradas[1].bloco;
+                blocoAtual = blocoPai;
+                continue;
+            }
+
+            // Localiza destino
+            int blocoDestino = localizarInodePorNome(arg1, blocoAtual, disco);
+            if (blocoDestino == -1)
+            {
+                printf("Diretório não encontrado: %s\n", arg1);
+                continue;
+            }
+
+            // Verifica permissão no destino
+            if (!temPermissao(disco[blocoDestino].inode, 'x'))
+            {
+                printf("Permissão negada: sem permissão de execução neste diretório.\n");
+                continue;
+            }
+
+            int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
+            if (blocoDiretorio >= 0)
+            {
+                blocoAtual = blocoDiretorio;
+
+                // Atualiza caminho atual
+                if (strcmp(caminho, "/") == 0)
+                    snprintf(caminho, sizeof(caminho), "/%s", arg1);
+                else
+                    snprintf(caminho + strlen(caminho),
+                             sizeof(caminho) - strlen(caminho), "/%s", arg1);
+            }
+            else
+            {
+                printf("Diretório inválido: %s\n", arg1);
+            }
+        }
+
+        // ======== MKDIR ========
+        else if (strcmp(comando, "mkdir") == 0)
+        {
+            arg1 = strtok(NULL, " ");
+            if (!arg1)
+            {
+                printf("Uso: mkdir <nome_diretorio>\n");
+                continue;
+            }
+
+            if (!temPermissao(disco[blocoAtual].inode, 'w'))
+            {
+                printf("Permissão negada: não é possível criar diretórios aqui.\n");
+                continue;
+            }
+
+            inserirDiretorio(arg1, listaBlocosLivres, disco, blocoAtual);
+        }
+
+        // ======== TOUCH ========
+        else if (strcmp(comando, "touch") == 0)
+        {
+            arg1 = strtok(NULL, " ");
+            arg2 = strtok(NULL, " ");
+
+            if (!arg1 || !arg2)
+            {
+                printf("Uso: touch <nome_arquivo> <tamanho_em_bytes>\n");
+                continue;
+            }
+
+            if (!temPermissao(disco[blocoAtual].inode, 'w'))
+            {
+                printf("Permissão negada: não é possível criar arquivos neste diretório.\n");
+                continue;
+            }
+
+            int tamanho = atoi(arg2);
+            inserirArquivo(arg1, tamanho, listaBlocosLivres, disco, blocoAtual);
+        }
+
+        // ======== RM ========
+        else if (strcmp(comando, "rm") == 0)
+        {
+            arg1 = strtok(NULL, " ");
+            if (!arg1)
+            {
+                printf("Uso: rm <nome_arquivo>\n");
+                continue;
+            }
+
+            if (!temPermissao(disco[blocoAtual].inode, 'w'))
+            {
+                printf("Permissão negada: não é possível remover arquivos aqui.\n");
+                continue;
+            }
+
+            removerArquivo(arg1, blocoAtual, disco, listaBlocosLivres);
+        }
+
+        // ======== CHMOD ========
+        else if (strcmp(comando, "chmod") == 0)
+        {
+            char *arg1 = strtok(NULL, " ");  // "+u" ou "-g"
+            char *modos = strtok(NULL, " "); // "rw"
+            char *nome = strtok(NULL, " ");  // nome do arquivo
+
+            if (!arg1 || !modos || !nome)
+            {
+                printf("Uso: chmod (+|-) (u|g|o) (rwx) <arquivo>\n");
+                continue;
+            }
+
+            char op = arg1[0];
+            char esc = arg1[1];
+
+            if ((op != '+' && op != '-') || (esc != 'u' && esc != 'g' && esc != 'o'))
+            {
+                printf("Formato inválido. Use chmod (+|-) (u|g|o) (rwx) <arquivo>\n");
+                continue;
+            }
+
+            char operacao[2] = {op, '\0'};
+            char escopo[2] = {esc, '\0'};
+
+            alterarPermissao(operacao, escopo, modos, nome, blocoAtual, disco);
+        }
+
+        // ======== COMANDOS FORK (FILHO) ========
+        else
+        {
+            pid_t pid = fork();
+            if (pid < 0)
+            {
+                perror("Erro ao criar processo filho");
+                continue;
+            }
+            else if (pid == 0)
+            {
+                if (strcmp(comando, "ls") == 0)
+                {
+                    arg1 = strtok(NULL, " ");
+                    if (!temPermissao(disco[blocoAtual].inode, 'r'))
+                    {
+                        printf("Permissão negada: não é possível listar o diretório.\n");
+                        _exit(0);
+                    }
+
+                    if (arg1 && strcmp(arg1, "-l") == 0)
+                        listarDiretorioDetalhado(disco[blocoAtual].diretorio, disco);
+                    else if (!arg1)
+                        listarDiretorio(disco[blocoAtual].diretorio);
+                    else
+                        printf("Uso: ls [-l]\n");
+                }
+                else if (strcmp(comando, "vi") == 0)
+                    printf("Simulação de vi (não implementada)\n");
+                else if (strcmp(comando, "rmdir") == 0)
+                    printf("Simulação de rmdir (não implementada)\n");
+                else if (strcmp(comando, "link") == 0)
+                    printf("Simulação de link (não implementada)\n");
+                else if (strcmp(comando, "unlink") == 0)
+                    printf("Simulação de unlink (não implementada)\n");
+                else
+                    printf("Comando não encontrado: %s\n", comando);
+
+                _exit(0);
+            }
+            else
+            {
+                wait(NULL);
+            }
+        }
+    } while (strcmp(comando, "exit") != 0);
+}
+
 int main(void)
 {
     // INFORMAR QUANTIDADE DE BLOCOS
@@ -802,6 +1147,8 @@ int main(void)
     int blocoAtual = abrirDiretorio("diretorio1", blocoRaiz, disco);
     removerArquivo("arquivo1.txt", blocoRaiz, disco, listaBlocosLivres);
     inserirArquivo("arquivo_diretorio1.txt", 150, listaBlocosLivres, disco, blocoAtual);
+
+    testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
 
     // ###### FIM INSERCOES DE TESTE #######
     iniciarTerminal(disco, listaBlocosLivres);
