@@ -113,6 +113,8 @@ int localizarInodePorNome(char *nome, int blocoAtual, Bloco *disco);
 void alterarPermissao(char *operacao, char *escopo, char *modos, char *nome, int blocoAtual, Bloco *disco);
 void listarDiretorioDetalhado(Diretorio diretorio, Bloco *disco);
 int temPermissao(Inode inode, char tipo);
+void criarLinkSimbolico(char *origem, char *destino, int blocoAtual, ListaBlocosLivres *lista, Bloco *disco);
+void removerLinkSimbolico(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista);
 
 void inicializarInode(Inode *inode)
 {
@@ -213,7 +215,7 @@ int alocarBloco(ListaBlocosLivres *lista)
         RemoverInicio(lista);
         Aux = lista->cabeca;
         if (Aux == NULL)
-        { // segurança extra
+        {
             printf("Espaco insuficiente\n");
             return -1;
         }
@@ -224,7 +226,7 @@ int alocarBloco(ListaBlocosLivres *lista)
         return -1;
     }
 
-    int bloco = Pop(Aux->blocos); // Pop deve retornar o índice do bloco
+    int bloco = Pop(Aux->blocos);
     return bloco;
 }
 
@@ -922,6 +924,242 @@ void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, B
     printf("\n===== FIM DOS TESTES =====\n\n");
 }
 
+void criarLinkSimbolico(char *origem, char *destino, int blocoAtual, ListaBlocosLivres *lista, Bloco *disco)
+{
+    int blocoInodeOrigem;
+    int blocoInodeLink;
+    int i, j;
+    int tamanho;
+    int blocosNecessarios;
+    int posicao;
+    int blocoConteudo;
+    char caminhoCompleto[256];
+
+    blocoInodeOrigem = localizarInodePorNome(origem, blocoAtual, disco);
+    if (blocoInodeOrigem == -1)
+    {
+        printf("Erro: origem '%s' não encontrada\n", origem);
+        return;
+    }
+
+    if (localizarInodePorNome(destino, blocoAtual, disco) != -1)
+    {
+        printf("Erro: '%s' já existe\n", destino);
+        return;
+    }
+
+    // Simula a obtenção do caminho completo exigido pelo enunciado
+    strcpy(caminhoCompleto, origem);
+    tamanho = strlen(caminhoCompleto);
+    blocosNecessarios = (tamanho / 10) + 1;
+
+    if (quantidadeBlocosLivres(lista) < blocosNecessarios + 1)
+    {
+        printf("Erro: espaço insuficiente\n");
+        return;
+    }
+
+    blocoInodeLink = alocarBloco(lista);
+
+    if (blocoInodeLink == -1)
+    {
+        printf("Erro: Falha na alocação do INODE para o link simbólico.\n");
+        return;
+    }
+
+    disco[blocoInodeLink].tipo = INODE;
+
+    Inode *inode = &disco[blocoInodeLink].inode;
+    inicializarInode(inode);
+
+    // Copia as permissões do INODE de origem (o alvo)
+    Inode *inodeOrigem = &disco[blocoInodeOrigem].inode;
+    strcpy(inode->protecao, inodeOrigem->protecao);
+
+    inode->tipo = 'l';
+    inode->tamanho = tamanho;
+    inode->contadorHardLinks = 1;
+
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(inode->data, sizeof(inode->data), "%d/%m/%Y", tm_info);
+    strftime(inode->hora, sizeof(inode->hora), "%H:%M", tm_info);
+
+    posicao = 0;
+    i = 0;
+    while (i < blocosNecessarios && i < MAX_ENDERECOS_DIRETOS_INODE)
+    {
+        blocoConteudo = alocarBloco(lista);
+
+        if (blocoConteudo == -1)
+        {
+            printf("Erro: Falha inesperada na alocação de bloco de conteúdo.\n");
+            // Em um FS real, seria necessário liberar o blocoInodeLink aqui.
+            return;
+        }
+
+        disco[blocoConteudo].tipo = ARQUIVO;
+        inode->enderecosDiretos[i] = blocoConteudo;
+
+        j = 0;
+        while (j < 10 && caminhoCompleto[posicao] != '\0')
+        {
+            disco[blocoConteudo].diretorio.entradas[0].nome[j] = caminhoCompleto[posicao];
+            posicao++;
+            j++;
+        }
+        disco[blocoConteudo].diretorio.entradas[0].nome[j] = '\0';
+
+        i++;
+    }
+
+    i = disco[blocoAtual].diretorio.quantidadeEntradas;
+    strcpy(disco[blocoAtual].diretorio.entradas[i].nome, destino);
+    disco[blocoAtual].diretorio.entradas[i].bloco = blocoInodeLink;
+    disco[blocoAtual].diretorio.quantidadeEntradas++;
+
+    printf("Link simbólico '%s' -> '%s' criado com sucesso\n", destino, origem);
+}
+
+void removerLinkSimbolico(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista)
+{
+    int blocoInode;
+    int i, j;
+
+    blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
+    if (blocoInode == -1)
+    {
+        printf("Erro: link simbólico '%s' não encontrado\n", nome);
+        return;
+    }
+
+    if (disco[blocoInode].inode.tipo != 'l')
+    {
+        printf("Erro: '%s' não é um link simbólico\n", nome);
+        return;
+    }
+
+    i = 0;
+    while (i < MAX_ENDERECOS_DIRETOS_INODE)
+    {
+        if (disco[blocoInode].inode.enderecosDiretos[i] != -1)
+        {
+            realocarBlocos(lista, disco[blocoInode].inode.enderecosDiretos[i]);
+            disco[disco[blocoInode].inode.enderecosDiretos[i]].tipo = FREE;
+            disco[blocoInode].inode.enderecosDiretos[i] = -1;
+        }
+        i++;
+    }
+
+    realocarBlocos(lista, blocoInode);
+    disco[blocoInode].tipo = FREE;
+
+    i = 2;
+    while (i < disco[blocoAtual].diretorio.quantidadeEntradas &&
+           strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) != 0)
+    {
+        i++;
+    }
+
+    j = i;
+    while (j < disco[blocoAtual].diretorio.quantidadeEntradas - 1)
+    {
+        disco[blocoAtual].diretorio.entradas[j] = disco[blocoAtual].diretorio.entradas[j + 1];
+        j++;
+    }
+    disco[blocoAtual].diretorio.quantidadeEntradas--;
+
+    printf("Link simbólico '%s' removido com sucesso\n", nome);
+}
+
+void testarLinkSimbolico(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, Bloco disco[])
+{
+    printf("\n===== TESTES AUTOMÁTICOS DE LINKS SIMBÓLICOS =====\n\n");
+
+    // Prepara ambiente básico
+    inserirDiretorio("diretorio1", listaBlocosLivres, disco, blocoRaiz);
+    inserirDiretorio("dirLink", listaBlocosLivres, disco, blocoRaiz);
+    // Cria arquivo para ser a origem (30 bytes -> 3 blocos de conteúdo no seu FS)
+    inserirArquivo("arquivoBase.txt", 30, listaBlocosLivres, disco, blocoRaiz);
+    // Cria um arquivo grande para testar o uso de múltiplos blocos no link simbólico
+    inserirArquivo("arqGrande.txt", 150, listaBlocosLivres, disco, blocoRaiz);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 2️⃣ Cria link simbólico para o arquivo
+    printf("\n>> Criando link simbólico 'atalho.txt' -> 'arquivoBase.txt'\n");
+    criarLinkSimbolico("arquivoBase.txt", "atalho.txt", blocoRaiz, listaBlocosLivres, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 3️⃣ Verifica se o link foi criado e se as permissões foram copiadas
+    int blocoLink = localizarInodePorNome("atalho.txt", blocoRaiz, disco);
+    int blocoOrigem = localizarInodePorNome("arquivoBase.txt", blocoRaiz, disco);
+
+    if (blocoLink != -1 && disco[blocoLink].inode.tipo == 'l')
+        printf("✅ Link simbólico criado com sucesso (atalho.txt)\n");
+    else
+        printf("🚫 Falha ao criar link simbólico\n");
+
+    if (blocoLink != -1 && blocoOrigem != -1)
+    {
+        if (strcmp(disco[blocoLink].inode.protecao, disco[blocoOrigem].inode.protecao) == 0)
+            printf("✅ Permissões copiadas corretamente.\n");
+        else
+            printf("🚫 Falha ao copiar permissões. Link: %s | Origem: %s\n",
+                   disco[blocoLink].inode.protecao, disco[blocoOrigem].inode.protecao);
+    }
+
+    // 4️⃣ Testa criar link simbólico com nome duplicado
+    printf("\n>> Tentando criar link simbólico com nome já existente (atalho.txt)\n");
+    criarLinkSimbolico("arquivoBase.txt", "atalho.txt", blocoRaiz, listaBlocosLivres, disco);
+
+    // 5️⃣ Testa criar link simbólico para origem inexistente
+    printf("\n>> Tentando criar link simbólico para origem inexistente ('naoExiste.txt')\n");
+    criarLinkSimbolico("naoExiste.txt", "atalhoFantasma", blocoRaiz, listaBlocosLivres, disco);
+
+    // 6️⃣ Cria link simbólico para diretório
+    printf("\n>> Criando link simbólico 'atalhoDir' -> 'dirLink'\n");
+    criarLinkSimbolico("dirLink", "atalhoDir", blocoRaiz, listaBlocosLivres, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 7️⃣ Cria link simbólico com string de origem longa (testa múltiplos blocos de conteúdo do link)
+    printf("\n>> Criando link simbólico 'atalhoLongo' -> 'arqGrande.txt'\n");
+    criarLinkSimbolico("arqGrande.txt", "atalhoLongo", blocoRaiz, listaBlocosLivres, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 8️⃣ Remove links simbólicos
+    printf("\n>> Removendo link simbólico 'atalho.txt'\n");
+    removerLinkSimbolico("atalho.txt", blocoRaiz, disco, listaBlocosLivres);
+    printf("\n>> Removendo link simbólico 'atalhoDir'\n");
+    removerLinkSimbolico("atalhoDir", blocoRaiz, disco, listaBlocosLivres);
+    printf("\n>> Removendo link simbólico 'atalhoLongo'\n");
+    removerLinkSimbolico("atalhoLongo", blocoRaiz, disco, listaBlocosLivres);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 9️⃣ Tenta remover link inexistente
+    printf("\n>> Tentando remover link simbólico inexistente 'naoExiste'\n");
+    removerLinkSimbolico("naoExiste", blocoRaiz, disco, listaBlocosLivres);
+
+    // 🔟 Cria e remove múltiplos links seguidos (testa desalocação e reuso)
+    printf("\n>> Criando vários links simbólicos de teste\n");
+    criarLinkSimbolico("arquivoBase.txt", "link1", blocoRaiz, listaBlocosLivres, disco);
+    criarLinkSimbolico("arquivoBase.txt", "link2", blocoRaiz, listaBlocosLivres, disco);
+    criarLinkSimbolico("arquivoBase.txt", "link3", blocoRaiz, listaBlocosLivres, disco);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    printf("\n>> Removendo links criados\n");
+    removerLinkSimbolico("link1", blocoRaiz, disco, listaBlocosLivres);
+    removerLinkSimbolico("link2", blocoRaiz, disco, listaBlocosLivres);
+    removerLinkSimbolico("link3", blocoRaiz, disco, listaBlocosLivres);
+    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
+
+    // 1️⃣1️⃣ Testa erro de espaço insuficiente (simulado) - deve capturar o erro
+    printf("\n>> Testando erro de espaço insuficiente (simulado)\n");
+    ListaBlocosLivres listaVazia = {0};
+    criarLinkSimbolico("arquivoBase.txt", "semEspaco", blocoRaiz, &listaVazia, disco);
+
+    printf("\n===== FIM DOS TESTES DE LINKS SIMBÓLICOS =====\n\n");
+}
+
 void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
 {
     char linha[256];
@@ -940,7 +1178,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
         comando = strtok(linha, " ");
         if (comando == NULL)
             continue;
- 
+
         // ======== CD ========
         if (strcmp(comando, "cd") == 0)
         {
@@ -955,7 +1193,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
                 strcpy(caminho, "/");
             }
             else
-            { 
+            {
                 size_t len = strlen(arg1);
                 if (len > 0 && arg1[len - 1] == '/')
                     arg1[len - 1] = '\0';
@@ -995,10 +1233,12 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
                             blocoAtual = blocoDiretorio;
 
                             if (strcmp(caminho, "/") == 0)
-                                snprintf(caminho, sizeof(caminho), "/%s", arg1);
+                                sprintf(caminho, "/%s", arg1);
                             else
-                                snprintf(caminho + strlen(caminho),
-                                         sizeof(caminho) - strlen(caminho), "/%s", arg1);
+                            {
+                                strcat(caminho, "/");
+                                strcat(caminho, arg1);
+                            }
                         }
                         else
                         {
@@ -1008,6 +1248,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
                 }
             }
         }
+
         // ======== MKDIR ========
         else if (strcmp(comando, "mkdir") == 0)
         {
@@ -1071,9 +1312,9 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
         // ======== CHMOD ========
         else if (strcmp(comando, "chmod") == 0)
         {
-            char *arg1 = strtok(NULL, " ");  // "+u" ou "-g"
-            char *modos = strtok(NULL, " "); // "rw"
-            char *nome = strtok(NULL, " ");  // nome do arquivo
+            char *arg1 = strtok(NULL, " ");
+            char *modos = strtok(NULL, " ");
+            char *nome = strtok(NULL, " ");
 
             if (!arg1 || !modos || !nome)
             {
@@ -1096,7 +1337,40 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
             alterarPermissao(operacao, escopo, modos, nome, blocoAtual, disco);
         }
 
-        // ======== COMANDOS FORK (FILHO) ========
+        // ======== LINK SIMBÓLICO (MOVIMENTO E ADAPTAÇÃO) ========
+        else if (strcmp(comando, "link") == 0)
+        {
+            char *tipo = strtok(NULL, " ");
+            char *origem = strtok(NULL, " ");
+            char *destino = strtok(NULL, " ");
+
+            if (!tipo || !origem || !destino)
+            {
+                printf("Uso: link (-s|-h) <origem> <destino>\n");
+                continue;
+            }
+
+            // 🛑 CHECAGEM DE PERMISSÃO DE ESCRITA NO DIRETÓRIO ATUAL
+            if (!temPermissao(disco[blocoAtual].inode, 'w'))
+            {
+                printf("Permissão negada: não é possível criar links neste diretório.\n");
+                continue;
+            }
+            // 🛑 FIM DA CHECAGEM DE PERMISSÃO
+
+            if (strcmp(tipo, "-s") == 0)
+            {
+                // A função criarLinkSimbolico já fará as checagens internas (origem existe, destino não existe)
+                criarLinkSimbolico(origem, destino, blocoAtual, listaBlocosLivres, disco);
+            }
+            else if (strcmp(tipo, "-h") == 0)
+                printf("Hard link ainda não implementado\n");
+            else
+                printf("Tipo inválido. Use -s para simbólico ou -h para físico\n");
+        }
+        // ======== FIM LINK SIMBÓLICO ========
+
+        // ======== COMANDOS EXECUTADOS NO FILHO ========
         else
         {
             pid_t pid = fork();
@@ -1127,10 +1401,35 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
                     printf("Simulação de vi (não implementada)\n");
                 else if (strcmp(comando, "rmdir") == 0)
                     printf("Simulação de rmdir (não implementada)\n");
-                else if (strcmp(comando, "link") == 0)
-                    printf("Simulação de link (não implementada)\n");
+
+                // ======== UNLINK SIMBÓLICO (MOVIMENTO PARA FILHO) ========
                 else if (strcmp(comando, "unlink") == 0)
-                    printf("Simulação de unlink (não implementada)\n");
+                {
+                    char *tipo = strtok(NULL, " ");
+                    char *nome = strtok(NULL, " ");
+
+                    if (!tipo || !nome)
+                    {
+                        printf("Uso: unlink (-s|-h) <nome>\n");
+                        _exit(0);
+                    }
+
+                    // Checagem de permissão de escrita para remover
+                    if (!temPermissao(disco[blocoAtual].inode, 'w'))
+                    {
+                        printf("Permissão negada: não é possível remover links aqui.\n");
+                        _exit(0);
+                    }
+
+                    if (strcmp(tipo, "-s") == 0)
+                        removerLinkSimbolico(nome, blocoAtual, disco, listaBlocosLivres);
+                    else if (strcmp(tipo, "-h") == 0)
+                        printf("Unlink hard link ainda não implementado\n");
+                    else
+                        printf("Tipo inválido. Use -s ou -h\n");
+                }
+                // ======== FIM UNLINK SIMBÓLICO ========
+
                 else
                     printf("Comando não encontrado: %s\n", comando);
 
@@ -1182,7 +1481,8 @@ int main(void)
     removerArquivo("arquivo1.txt", blocoRaiz, disco, listaBlocosLivres);
     inserirArquivo("arquivo_diretorio1.txt", 150, listaBlocosLivres, disco, blocoAtual);
 
-    testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
+    // testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
+    testarLinkSimbolico(blocoRaiz, listaBlocosLivres, disco);
 
     // ###### FIM INSERCOES DE TESTE #######
     iniciarTerminal(disco, listaBlocosLivres);
