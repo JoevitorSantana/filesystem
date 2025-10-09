@@ -8,6 +8,8 @@
 #include <time.h>
 #include <cstdio>
 #include <ctype.h>
+#include <conio.h>
+#include <time.h>
 
 #define MAX_ENDERECOS_DIRETOS_INODE 5
 #define MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE 5
@@ -1283,7 +1285,255 @@ void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, B
     printf("\n===== FIM DOS TESTES =====\n\n");
 }
 
-void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
+
+//BAAAADDDDD
+
+void marcarBlocoBad(int numeroBloco, Bloco *disco, ListaBlocosLivres *lista, int quantidadeBlocos) {
+    // Verifica se o bloco é válido
+    if (numeroBloco < 0 || numeroBloco >= quantidadeBlocos) {
+        printf("Número de bloco inválido.\n");
+        return;
+    }
+
+    // Verifica se já está marcado como bad
+    if (disco[numeroBloco].tipo == BAD) {
+        printf("Bloco %d já está marcado como defeituoso.\n", numeroBloco);
+        return;
+    }
+
+    // Muda o tipo para BAD
+    disco[numeroBloco].tipo = BAD;
+
+    // Remover o bloco da lista de blocos livres (se estiver lá)
+    NoLista *aux = lista->cabeca;
+    while (aux != NULL) {
+        Pilha *pilha = aux->blocos;
+        Pilha *novaPilha = CriarPilha();  // nova pilha sem o bloco defeituoso
+
+        while (pilha->topo != NULL) {
+            int bloco = Pop(pilha);
+            if (bloco != numeroBloco) {
+                Push(novaPilha, bloco);
+            }
+        }
+
+        // Substitui a pilha antiga pela nova
+        aux->blocos = novaPilha;
+        aux = aux->prox;
+    }
+
+    printf("Bloco %d foi marcado como defeituoso (BAD).\n", numeroBloco);
+}
+
+//RELATORIOOO BAD
+
+void relatorioArquivosCorrompidos(Bloco *disco, int quantidadeBlocos) {
+    printf("\n=== Relatorio de Arquivos Corrompidos ===\n");
+
+    int totalArquivos = 0;
+    int arquivosInteiros = 0;
+    int arquivosCorrompidos = 0;
+
+    // Percorrer todos os blocos do disco
+    for (int i = 0; i < quantidadeBlocos; i++) {
+        if (disco[i].tipo == INODE) {
+            int corrompido = 0;
+
+            // Verifica os blocos diretos
+            for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
+                int bloco = disco[i].inode.enderecosDiretos[j];
+                if (bloco != -1) {
+                    if (disco[bloco].tipo == BAD) {
+                        corrompido = 1;
+                        break;
+                    }
+                }
+            }
+
+            totalArquivos++;
+            // Buscar o nome do arquivo nos diretórios para exibir
+            char nomeArquivo[50] = "arquivo_desconhecido";
+            // Percorre diretórios procurando esse inode
+            for (int d = 0; d < quantidadeBlocos; d++) {
+                if (disco[d].tipo == DIRETORIO) {
+                    for (int e = 0; e < disco[d].diretorio.quantidadeEntradas; e++) {
+                        if (disco[d].diretorio.entradas[e].bloco == i) {
+                            strcpy(nomeArquivo, disco[d].diretorio.entradas[e].nome);
+                        }
+                    }
+                }
+            }
+
+            if (corrompido) {
+                printf(" Arquivo corrompido: %s (inode %d)\n", nomeArquivo, i);
+                arquivosCorrompidos++;
+            } else {
+                printf("Arquivo integro: %s (inode %d)\n", nomeArquivo, i);
+                arquivosInteiros++;
+            }
+        }
+    }
+
+    printf("\nResumo: %d arquivos totais | %d integros | %d corrompidos\n",
+           totalArquivos, arquivosInteiros, arquivosCorrompidos);
+    printf("===========================================\n\n");
+}
+
+
+//DFFFFF
+
+void mostrarEspacoDisco(Bloco *disco, int quantidadeBlocos, int tamanhoBloco) {
+    int livres = 0;
+    int ocupados = 0;
+    int defeituosos = 0;
+
+    for (int i = 0; i < quantidadeBlocos; i++) {
+        if (disco[i].tipo == FREE) {
+            livres++;
+        } else if (disco[i].tipo == BAD) {
+            defeituosos++;
+        } else {
+            // Arquivo, Inode ou Diretório contam como ocupados
+            ocupados++;
+        }
+    }
+
+    int totalBytes = quantidadeBlocos * tamanhoBloco;
+    int livresBytes = livres * tamanhoBloco;
+    int ocupadosBytes = ocupados * tamanhoBloco;
+    int defeituososBytes = defeituosos * tamanhoBloco;
+    float percentualUso = (ocupados * 100.0) / quantidadeBlocos;
+
+    printf("\n=== Relatorio de Espaco em Disco (df) ===\n");
+    printf("Tamanho total do disco: %d bytes\n", totalBytes);
+    printf("Espaco livre: %d bytes (%d blocos)\n", livresBytes, livres);
+    printf("Espaco ocupado: %d bytes (%d blocos)\n", ocupadosBytes, ocupados);
+    //printf("Blocos defeituosos: %d (%d bytes)\n", defeituosos, defeituososBytes);
+    //printf("Uso do disco: %.2f%%\n", percentualUso);
+    //printf("=========================================\n\n");
+}
+
+
+
+//// VIIIIII
+
+void visualizarArquivo(char *nome, int blocoAtual, Bloco *disco, int quantidadeBlocos) { 
+    // Procurar o arquivo no diretório atual
+    int i;
+    int blocoInode = -1;
+
+    for (i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++) {
+        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0) {
+            blocoInode = disco[blocoAtual].diretorio.entradas[i].bloco;
+            break;
+        }
+    }
+
+    if (blocoInode == -1) {
+        printf("Arquivo '%s' não encontrado.\n", nome);
+        return;
+    }
+
+    // Verificar se o inode realmente é de arquivo
+    if (disco[blocoInode].tipo != INODE) {
+        printf("'%s' nao e um arquivo regular.\n", nome);
+        return;
+    }
+
+    // Verificar se algum bloco de dados do arquivo está defeituoso
+    int corrompido = 0;
+    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
+        int bloco = disco[blocoInode].inode.enderecosDiretos[j];
+        if (bloco != -1 && disco[bloco].tipo == BAD) {
+            corrompido = 1;
+            break;
+        }
+    }
+
+    if (corrompido)
+        printf("Arquivo '%s' corrompido. Nao e possivel abri\n", nome);
+    else
+        printf("Arquivo '%s' visualizado com sucesso\n", nome);
+}
+
+
+/// RELATORIOOO 1
+int blocosOcupadosArquivo(char *nome, int blocoDiretorio, Bloco *disco) {
+    // Procurar o arquivo no diretório atual
+    int blocoInodeArquivo = -1;
+    for (int i = 2; i < disco[blocoDiretorio].diretorio.quantidadeEntradas; i++) {
+        if (strcmp(disco[blocoDiretorio].diretorio.entradas[i].nome, nome) == 0) {
+            blocoInodeArquivo = disco[blocoDiretorio].diretorio.entradas[i].bloco;
+            break;
+        }
+    }
+
+    if (blocoInodeArquivo == -1) {
+        printf("Arquivo '%s' não encontrado.\n", nome);
+        return -1;
+    }
+
+    int blocosOcupados = 0;
+
+    // Contar blocos diretos
+    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
+        if (disco[blocoInodeArquivo].inode.enderecosDiretos[j] != -1) {
+            blocosOcupados++;
+        }
+    }
+
+    // (Se quiser, depois dá pra incluir indiretos simples, duplos e triplos aqui)
+
+    printf("O arquivo '%s' ocupa %d blocos de dados (%d bytes).\n",
+           nome, blocosOcupados, blocosOcupados * 10);
+
+    return blocosOcupados;
+}
+
+
+//Relatorio 5
+void imprimirEstadoBlocos(Bloco *disco, int quantidadeBlocos) {
+    printf("\n=== ESTADO ATUAL DOS BLOCOS ===\n");
+    printf("Bloco\tTipo\n");
+    printf("--------------------------\n");
+
+    for (int i = 0; i < quantidadeBlocos; i++) {
+        char *tipo;
+
+        switch (disco[i].tipo) {
+            case 'D': tipo = "DIRETÓRIO"; break;
+            case 'A': tipo = "ARQUIVO"; break;
+            case 'I': tipo = "INODE"; break;
+            case 'F': tipo = "LIVRE"; break;
+            case 'B': tipo = "BAD"; break;
+            default:  tipo = "DESCONHECIDO"; break;
+        }
+
+        printf("%d\t%s\n", i, tipo);
+    }
+    printf("--------------------------\n");
+}
+
+//Relatorio 2
+
+int maiorArquivoPossivel(ListaBlocosLivres *lista) {
+    int livres = quantidadeBlocosLivres(lista);
+
+    if (livres <= 1) {
+        printf("Espaço insuficiente para criar um novo arquivo.\n");
+        return 0;
+    }
+
+    // 1 bloco será usado pelo inode
+    int blocosDisponiveis = livres - 1;
+
+    printf("O maior arquivo que ainda pode ser criado ocupa %d blocos (%d bytes).\n",
+           blocosDisponiveis, blocosDisponiveis * 10);
+
+    return blocosDisponiveis;
+}
+
+void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int quantidadeBlocos)
 {
     char linha[256];
     char *comando;
@@ -1481,7 +1731,36 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres)
 
             alterarPermissao(operacao, escopo, modos, nome, blocoAtual, disco);
         }
-
+        else if(strcmp(comando, "bad") == 0) { 
+            arg1 = strtok(NULL, " ");
+            if (arg1 != NULL) {
+                int numeroBloco = atoi(arg1);
+                marcarBlocoBad(numeroBloco, disco, listaBlocosLivres, 1000); 
+            } else {
+                printf("Uso: bad <numero_bloco>\n");
+            }
+        }
+        else if(strcmp(comando, "relatorio3") == 0) 
+            relatorioArquivosCorrompidos(disco, quantidadeBlocos);
+        else if(strcmp(comando, "df") == 0) 
+            mostrarEspacoDisco(disco, quantidadeBlocos, 10);
+        else if(strcmp(comando, "vi") == 0) {
+            arg1 = strtok(NULL, " ");
+            if (arg1 != NULL) {
+                visualizarArquivo(arg1, blocoAtual, disco, quantidadeBlocos);
+            } else 
+                printf("Uso: vi <nome_arquivo>\n");}
+        else if(strcmp(comando, "blocos") == 0) {
+            arg1 = strtok(NULL, " ");
+            if (arg1 != NULL) {
+                blocosOcupadosArquivo(arg1, blocoAtual, disco);
+            } else {
+                printf("Uso: blocos <nome_arquivo>\n");
+            }}
+        else if(strcmp(comando, "estado") == 0) {
+            imprimirEstadoBlocos(disco, quantidadeBlocos);} 
+        else if(strcmp(comando, "maior") == 0) {
+            maiorArquivoPossivel(listaBlocosLivres);}
         // ======== COMANDOS FORK (FILHO) ========
         else
         {
@@ -1592,7 +1871,7 @@ int main(void)
     //testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
 
     // ###### FIM INSERCOES DE TESTE #######
-    iniciarTerminal(disco, listaBlocosLivres);
+    iniciarTerminal(disco, listaBlocosLivres, quantidadeBlocos);
 
     // percorrer blocos e imprimir seus tipos
     for (int i = 0; i < quantidadeBlocos; i++)
