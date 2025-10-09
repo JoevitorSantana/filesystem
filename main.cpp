@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-//#include <conio.c>
+// #include <conio.c>
 #include <sys/types.h>
 #include <sys/wait.h> // No windiws deu b.o tem que ver
 #include <unistd.h>
 #include <time.h>
 #include <cstdio>
 #include <ctype.h>
-#include <conio.h>
+#include "conio.h"
 #include <time.h>
 
 #define MAX_ENDERECOS_DIRETOS_INODE 5
@@ -192,7 +192,7 @@ void inicializarBloco(Bloco &bloco)
     inicializarInode(&bloco.inode);
     inicializarInodeSimples(bloco.inodeEnderecoSimples);
     inicializarInodeDuplo(bloco.inodeEnderecoDuplo);
-    inicializarInodeTriplo(bloco.inodeEnderecoTriplo); 
+    inicializarInodeTriplo(bloco.inodeEnderecoTriplo);
 }
 
 void inicializarBlocos(Bloco *disco, int quantidadeBlocos)
@@ -434,43 +434,49 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
 
     INodeIndiretoDuplo inodeDuplo;
     INodeIndiretoTriplo inodeTriplo;
-    
+
     int qtdeInodeDuplo = 0, qtdeInodeSimples = 0;
     int qtdeInodeDuploLIT = 0, qtdeInodeSimplesLIT = 0;
 
     while (quantidade > 0 && Aux != NULL)
     {
         // verificar se a pilha de blocos do no atual nao esta vazia
-        while (quantidade > 0 && Count(Aux->blocos) > 0) {
-            if (quantidadeAlocada < MAX_ENDERECOS_DIRETOS_INODE) {
+        while (quantidade > 0 && Count(Aux->blocos) > 0)
+        {
+            if (quantidadeAlocada < MAX_ENDERECOS_DIRETOS_INODE)
+            {
                 bloco = alocarBloco(lista);
                 disco[enderecoBlocoInode].inode.enderecosDiretos[quantidadeBlocos - quantidade] = bloco;
-                disco[bloco].tipo = ARQUIVO;                
-            } else if (quantidadeBlocos >= MAX_ENDERECOS_DIRETOS_INODE && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_SIMPLES)
+                disco[bloco].tipo = ARQUIVO;
+            }
+            else if (quantidadeBlocos >= MAX_ENDERECOS_DIRETOS_INODE && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_SIMPLES)
             {
-                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE) {
+                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE)
+                {
                     // alocar um bloco para o inode de enderecos indiretos simples
                     int blocoInodeSimples = alocarBloco(lista);
                     disco[enderecoBlocoInode].inode.enderecoSimplesIndireto = blocoInodeSimples;
                     disco[blocoInodeSimples].tipo = INODE;
                 }
-                
+
                 int posBlocoInodeIndiretoSimples = disco[enderecoBlocoInode].inode.enderecoSimplesIndireto;
                 bloco = Pop(Aux->blocos);
 
                 // inserir o bloco na lista de enderecos do inode de enderecos indiretos simples
                 disco[posBlocoInodeIndiretoSimples].inodeEnderecoSimples.enderecos[disco[posBlocoInodeIndiretoSimples].inodeEnderecoSimples.quantidadeEnderecos++] = bloco;
                 disco[bloco].tipo = ARQUIVO;
-            } else if (quantidadeBlocos > MAX_NUM_BLOCOS_INDIRETO_SIMPLES && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_DUPLO)
+            }
+            else if (quantidadeBlocos > MAX_NUM_BLOCOS_INDIRETO_SIMPLES && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_DUPLO)
             {
-                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE) {
+                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE)
+                {
                     // inicializar os inodos indiretos simples
                     inicializarInodeDuplo(inodeDuplo);
 
                     for (int i = 0; i < MAX_ENDERECOS_INDIRETOS_DUPLO_INODE; i++)
                         inicializarInodeSimples(inodeSimples[i]);
                 }
-                
+
                 //  verificar a quantidade de inodes simples ja alocados
                 if (inodeSimples[qtdeInodeSimples].quantidadeEnderecos == MAX_ENDERECOS_INDIRETOS_SIMPLES_INODE)
                     qtdeInodeSimples++;
@@ -479,7 +485,8 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
                 inodeSimples[qtdeInodeSimples].enderecos[inodeSimples[qtdeInodeSimples].quantidadeEnderecos++] = bloco;
                 disco[bloco].tipo = ARQUIVO;
 
-                if (quantidadeAlocada == quantidadeBlocos-1) {
+                if (quantidadeAlocada == quantidadeBlocos - 1)
+                {
                     // alocar um bloco para o inode de enderecos indiretos duplos
                     for (int i = 0; i <= qtdeInodeSimples; i++)
                     {
@@ -495,17 +502,19 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
                     disco[blocoInodeDuplo].tipo = INODE;
                     disco[blocoInodeDuplo].inodeEnderecoDuplo = inodeDuplo;
                 }
-            } else if (quantidadeBlocos > MAX_NUM_BLOCOS_INDIRETO_DUPLO && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_TRIPLO)
+            }
+            else if (quantidadeBlocos > MAX_NUM_BLOCOS_INDIRETO_DUPLO && quantidadeBlocos <= MAX_NUM_BLOCOS_INDIRETO_TRIPLO)
             {
-                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE) {
+                if (quantidadeAlocada == MAX_ENDERECOS_DIRETOS_INODE)
+                {
                     inicializarInodeTriplo(inodeTriplo);
 
                     // inializar os 5 inodes duplos
-                    for (int i = 0; i < MAX_ENDERECOS_INDIRETOS_DUPLO_INODE;i++)
+                    for (int i = 0; i < MAX_ENDERECOS_INDIRETOS_DUPLO_INODE; i++)
                     {
                         inicializarInodeDuplo(inodeDuploListaIndiretoTriplo[i]);
                     }
-                    
+
                     // inicializar os 25 inodes simples
                     for (int i = 0; i < MAX_NUM_BLOCOS_INDIRETO_DUPLO; i++)
                     {
@@ -515,7 +524,7 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
 
                 if (inodeSimplesListaIndiretoTriplo[qtdeInodeSimplesLIT].quantidadeEnderecos == MAX_ENDERECOS_INDIRETOS_DUPLO_INODE)
                     qtdeInodeSimplesLIT++;
-                
+
                 bloco = alocarBloco(lista);
                 inodeSimplesListaIndiretoTriplo[qtdeInodeSimplesLIT].enderecos[inodeSimplesListaIndiretoTriplo[qtdeInodeSimplesLIT].quantidadeEnderecos++] = bloco;
                 disco[bloco].tipo = ARQUIVO;
@@ -523,7 +532,7 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
                 if (quantidadeAlocada == quantidadeBlocos - 1)
                 {
                     // percorrer os inodes simples qtdeInodeSimplesLIT
-                    // para cada um alocar um bloco para o inode duplo 
+                    // para cada um alocar um bloco para o inode duplo
                     for (int i = 0; i <= qtdeInodeSimplesLIT; i++)
                     {
                         bloco = alocarBloco(lista);
@@ -555,12 +564,13 @@ void inserirArquivo(char *nome, int tamanhoEmBytes, ListaBlocosLivres *lista, Bl
                     disco[enderecoBlocoInode].inode.enderecosTriploIndireto = bloco;
                 }
             }
-            
+
             quantidadeAlocada++;
             quantidade--;
         }
         // se a pilha de blocos do no atual estiver vazia, ir para o proximo no
-        if (quantidade > 0 && Count(Aux->blocos) == 0){
+        if (quantidade > 0 && Count(Aux->blocos) == 0)
+        {
             RemoverInicio(lista);
             Aux = lista->cabeca;
         }
@@ -610,7 +620,6 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
             int blocoRealocar = disco[enderecoBlocoIndiretoSimples].inodeEnderecoSimples.enderecos[i];
             realocarBlocos(lista, blocoRealocar);
             inicializarBloco(disco[blocoRealocar]);
-
         }
 
         realocarBlocos(lista, enderecoBlocoIndiretoSimples);
@@ -623,7 +632,7 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
     {
         int enderecoBlocoIndiretoDuplo = disco[blocoInodeArquivo].inode.enderecosDuploIndireto;
 
-        for(int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
+        for (int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
         {
             int enderecoBlocoIndiretoSimples = disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.enderecos[i];
 
@@ -633,7 +642,7 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
                 realocarBlocos(lista, blocoRealocar);
                 inicializarBloco(disco[blocoRealocar]);
             }
-            
+
             realocarBlocos(lista, enderecoBlocoIndiretoSimples);
             inicializarBloco(disco[enderecoBlocoIndiretoSimples]);
         }
@@ -652,7 +661,7 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
         {
             int enderecoBlocoIndiretoDuplo = disco[enderecoBlocoIndiretoTriplo].inodeEnderecoTriplo.enderecos[i];
 
-            for(int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
+            for (int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
             {
                 int enderecoBlocoIndiretoSimples = disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.enderecos[i];
 
@@ -662,7 +671,7 @@ void removerArquivo(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres 
                     realocarBlocos(lista, blocoRealocar);
                     inicializarBloco(disco[blocoRealocar]);
                 }
-                
+
                 realocarBlocos(lista, enderecoBlocoIndiretoSimples);
                 inicializarBloco(disco[enderecoBlocoIndiretoSimples]);
             }
@@ -747,7 +756,6 @@ void removerDiretorio(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivre
             int blocoRealocar = disco[enderecoBlocoIndiretoSimples].inodeEnderecoSimples.enderecos[i];
             realocarBlocos(lista, blocoRealocar);
             inicializarBloco(disco[blocoRealocar]);
-
         }
 
         realocarBlocos(lista, enderecoBlocoIndiretoSimples);
@@ -760,7 +768,7 @@ void removerDiretorio(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivre
     {
         int enderecoBlocoIndiretoDuplo = disco[blocoInodeArquivo].inode.enderecosDuploIndireto;
 
-        for(int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
+        for (int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
         {
             int enderecoBlocoIndiretoSimples = disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.enderecos[i];
 
@@ -770,7 +778,7 @@ void removerDiretorio(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivre
                 realocarBlocos(lista, blocoRealocar);
                 inicializarBloco(disco[blocoRealocar]);
             }
-            
+
             realocarBlocos(lista, enderecoBlocoIndiretoSimples);
             inicializarBloco(disco[enderecoBlocoIndiretoSimples]);
         }
@@ -789,7 +797,7 @@ void removerDiretorio(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivre
         {
             int enderecoBlocoIndiretoDuplo = disco[enderecoBlocoIndiretoTriplo].inodeEnderecoTriplo.enderecos[i];
 
-            for(int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
+            for (int i = 0; i < disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.quantidadeEnderecos; i++)
             {
                 int enderecoBlocoIndiretoSimples = disco[enderecoBlocoIndiretoDuplo].inodeEnderecoDuplo.enderecos[i];
 
@@ -799,7 +807,7 @@ void removerDiretorio(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivre
                     realocarBlocos(lista, blocoRealocar);
                     inicializarBloco(disco[blocoRealocar]);
                 }
-                
+
                 realocarBlocos(lista, enderecoBlocoIndiretoSimples);
                 inicializarBloco(disco[enderecoBlocoIndiretoSimples]);
             }
@@ -1076,154 +1084,6 @@ int temPermissao(Inode inode, char tipo)
     default:
         return 0;
     }
-}
-
-void criarLinkSimbolico(char *origem, char *destino, int blocoAtual, ListaBlocosLivres *lista, Bloco *disco)
-{
-    int blocoInodeOrigem;
-    int blocoInodeLink;
-    int i, j;
-    int tamanho;
-    int blocosNecessarios;
-    int posicao;
-    int blocoConteudo;
-    char caminhoCompleto[256];
-
-    blocoInodeOrigem = localizarInodePorNome(origem, blocoAtual, disco);
-    if (blocoInodeOrigem == -1)
-    {
-        printf("Erro: origem '%s' não encontrada\n", origem);
-        return;
-    }
-
-    if (localizarInodePorNome(destino, blocoAtual, disco) != -1)
-    {
-        printf("Erro: '%s' já existe\n", destino);
-        return;
-    }
-
-    // Simula a obtenção do caminho completo exigido pelo enunciado
-    strcpy(caminhoCompleto, origem);
-    tamanho = strlen(caminhoCompleto);
-    blocosNecessarios = (tamanho / 10) + 1;
-
-    if (quantidadeBlocosLivres(lista) < blocosNecessarios + 1)
-    {
-        printf("Erro: espaço insuficiente\n");
-        return;
-    }
-
-    blocoInodeLink = alocarBloco(lista);
-
-    if (blocoInodeLink == -1)
-    {
-        printf("Erro: Falha na alocação do INODE para o link simbólico.\n");
-        return;
-    }
-
-    disco[blocoInodeLink].tipo = INODE;
-
-    Inode *inode = &disco[blocoInodeLink].inode;
-    inicializarInode(inode);
-
-    // Copia as permissões do INODE de origem (o alvo)
-    Inode *inodeOrigem = &disco[blocoInodeOrigem].inode;
-    strcpy(inode->protecao, inodeOrigem->protecao);
-
-    inode->tipo = 'l';
-    inode->tamanho = tamanho;
-    inode->contadorHardLinks = 1;
-
-    time_t t = time(NULL);
-    struct tm *tm_info = localtime(&t);
-    strftime(inode->data, sizeof(inode->data), "%d/%m/%Y", tm_info);
-    strftime(inode->hora, sizeof(inode->hora), "%H:%M", tm_info);
-
-    posicao = 0;
-    i = 0;
-    while (i < blocosNecessarios && i < MAX_ENDERECOS_DIRETOS_INODE)
-    {
-        blocoConteudo = alocarBloco(lista);
-
-        if (blocoConteudo == -1)
-        {
-            printf("Erro: Falha inesperada na alocação de bloco de conteúdo.\n");
-            // Em um FS real, seria necessário liberar o blocoInodeLink aqui.
-            return;
-        }
-
-        disco[blocoConteudo].tipo = ARQUIVO;
-        inode->enderecosDiretos[i] = blocoConteudo;
-
-        j = 0;
-        while (j < 10 && caminhoCompleto[posicao] != '\0')
-        {
-            disco[blocoConteudo].diretorio.entradas[0].nome[j] = caminhoCompleto[posicao];
-            posicao++;
-            j++;
-        }
-        disco[blocoConteudo].diretorio.entradas[0].nome[j] = '\0';
-
-        i++;
-    }
-
-    i = disco[blocoAtual].diretorio.quantidadeEntradas;
-    strcpy(disco[blocoAtual].diretorio.entradas[i].nome, destino);
-    disco[blocoAtual].diretorio.entradas[i].bloco = blocoInodeLink;
-    disco[blocoAtual].diretorio.quantidadeEntradas++;
-
-    printf("Link simbólico '%s' -> '%s' criado com sucesso\n", destino, origem);
-}
-
-void removerLinkSimbolico(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista)
-{
-    int blocoInode;
-    int i, j;
-
-    blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
-    if (blocoInode == -1)
-    {
-        printf("Erro: link simbólico '%s' não encontrado\n", nome);
-        return;
-    }
-
-    if (disco[blocoInode].inode.tipo != 'l')
-    {
-        printf("Erro: '%s' não é um link simbólico\n", nome);
-        return;
-    }
-
-    i = 0;
-    while (i < MAX_ENDERECOS_DIRETOS_INODE)
-    {
-        if (disco[blocoInode].inode.enderecosDiretos[i] != -1)
-        {
-            realocarBlocos(lista, disco[blocoInode].inode.enderecosDiretos[i]);
-            disco[disco[blocoInode].inode.enderecosDiretos[i]].tipo = FREE;
-            disco[blocoInode].inode.enderecosDiretos[i] = -1;
-        }
-        i++;
-    }
-
-    realocarBlocos(lista, blocoInode);
-    disco[blocoInode].tipo = FREE;
-
-    i = 2;
-    while (i < disco[blocoAtual].diretorio.quantidadeEntradas &&
-           strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) != 0)
-    {
-        i++;
-    }
-
-    j = i;
-    while (j < disco[blocoAtual].diretorio.quantidadeEntradas - 1)
-    {
-        disco[blocoAtual].diretorio.entradas[j] = disco[blocoAtual].diretorio.entradas[j + 1];
-        j++;
-    }
-    disco[blocoAtual].diretorio.quantidadeEntradas--;
-
-    printf("Link simbólico '%s' removido com sucesso\n", nome);
 }
 
 // BAAAADDDDD
@@ -1524,254 +1384,155 @@ int maiorArquivoPossivel(ListaBlocosLivres *lista)
     return blocosDisponiveis;
 }
 
+void criarLinkSimbolico(char *origem, char *destino, int blocoAtual, ListaBlocosLivres *lista, Bloco *disco)
+{
+    int blocoInodeOrigem;
+    int blocoInodeLink;
+    int i, j;
+    int tamanho;
+    int blocosNecessarios;
+    int posicao;
+    int blocoConteudo;
+    char caminhoCompleto[256];
 
-//BAAAADDDDD
-
-void marcarBlocoBad(int numeroBloco, Bloco *disco, ListaBlocosLivres *lista, int quantidadeBlocos) {
-    // Verifica se o bloco é válido
-    if (numeroBloco < 0 || numeroBloco >= quantidadeBlocos) {
-        printf("Número de bloco inválido.\n");
+    blocoInodeOrigem = localizarInodePorNome(origem, blocoAtual, disco);
+    if (blocoInodeOrigem == -1)
+    {
+        printf("Erro: origem '%s' não encontrada\n", origem);
         return;
     }
 
-    // Verifica se já está marcado como bad
-    if (disco[numeroBloco].tipo == BAD) {
-        printf("Bloco %d já está marcado como defeituoso.\n", numeroBloco);
+    if (localizarInodePorNome(destino, blocoAtual, disco) != -1)
+    {
+        printf("Erro: '%s' já existe\n", destino);
         return;
     }
 
-    // Muda o tipo para BAD
-    disco[numeroBloco].tipo = BAD;
+    // Simula a obtenção do caminho completo exigido pelo enunciado
+    strcpy(caminhoCompleto, origem);
+    tamanho = strlen(caminhoCompleto);
+    blocosNecessarios = (tamanho / 10) + 1;
 
-    // Remover o bloco da lista de blocos livres (se estiver lá)
-    NoLista *aux = lista->cabeca;
-    while (aux != NULL) {
-        Pilha *pilha = aux->blocos;
-        Pilha *novaPilha = CriarPilha();  // nova pilha sem o bloco defeituoso
-
-        while (pilha->topo != NULL) {
-            int bloco = Pop(pilha);
-            if (bloco != numeroBloco) {
-                Push(novaPilha, bloco);
-            }
-        }
-
-        // Substitui a pilha antiga pela nova
-        aux->blocos = novaPilha;
-        aux = aux->prox;
-    }
-
-    printf("Bloco %d foi marcado como defeituoso (BAD).\n", numeroBloco);
-}
-
-//RELATORIOOO BAD
-
-void relatorioArquivosCorrompidos(Bloco *disco, int quantidadeBlocos) {
-    printf("\n=== Relatorio de Arquivos Corrompidos ===\n");
-
-    int totalArquivos = 0;
-    int arquivosInteiros = 0;
-    int arquivosCorrompidos = 0;
-
-    // Percorrer todos os blocos do disco
-    for (int i = 0; i < quantidadeBlocos; i++) {
-        if (disco[i].tipo == INODE) {
-            int corrompido = 0;
-
-            // Verifica os blocos diretos
-            for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
-                int bloco = disco[i].inode.enderecosDiretos[j];
-                if (bloco != -1) {
-                    if (disco[bloco].tipo == BAD) {
-                        corrompido = 1;
-                        break;
-                    }
-                }
-            }
-
-            totalArquivos++;
-            // Buscar o nome do arquivo nos diretórios para exibir
-            char nomeArquivo[50] = "arquivo_desconhecido";
-            // Percorre diretórios procurando esse inode
-            for (int d = 0; d < quantidadeBlocos; d++) {
-                if (disco[d].tipo == DIRETORIO) {
-                    for (int e = 0; e < disco[d].diretorio.quantidadeEntradas; e++) {
-                        if (disco[d].diretorio.entradas[e].bloco == i) {
-                            strcpy(nomeArquivo, disco[d].diretorio.entradas[e].nome);
-                        }
-                    }
-                }
-            }
-
-            if (corrompido) {
-                printf(" Arquivo corrompido: %s (inode %d)\n", nomeArquivo, i);
-                arquivosCorrompidos++;
-            } else {
-                printf("Arquivo integro: %s (inode %d)\n", nomeArquivo, i);
-                arquivosInteiros++;
-            }
-        }
-    }
-
-    printf("\nResumo: %d arquivos totais | %d integros | %d corrompidos\n",
-           totalArquivos, arquivosInteiros, arquivosCorrompidos);
-    printf("===========================================\n\n");
-}
-
-
-//DFFFFF
-
-void mostrarEspacoDisco(Bloco *disco, int quantidadeBlocos, int tamanhoBloco) {
-    int livres = 0;
-    int ocupados = 0;
-    int defeituosos = 0;
-
-    for (int i = 0; i < quantidadeBlocos; i++) {
-        if (disco[i].tipo == FREE) {
-            livres++;
-        } else if (disco[i].tipo == BAD) {
-            defeituosos++;
-        } else {
-            // Arquivo, Inode ou Diretório contam como ocupados
-            ocupados++;
-        }
-    }
-
-    int totalBytes = quantidadeBlocos * tamanhoBloco;
-    int livresBytes = livres * tamanhoBloco;
-    int ocupadosBytes = ocupados * tamanhoBloco;
-    int defeituososBytes = defeituosos * tamanhoBloco;
-    float percentualUso = (ocupados * 100.0) / quantidadeBlocos;
-
-    printf("\n=== Relatorio de Espaco em Disco (df) ===\n");
-    printf("Tamanho total do disco: %d bytes\n", totalBytes);
-    printf("Espaco livre: %d bytes (%d blocos)\n", livresBytes, livres);
-    printf("Espaco ocupado: %d bytes (%d blocos)\n", ocupadosBytes, ocupados);
-    //printf("Blocos defeituosos: %d (%d bytes)\n", defeituosos, defeituososBytes);
-    //printf("Uso do disco: %.2f%%\n", percentualUso);
-    //printf("=========================================\n\n");
-}
-
-
-
-//// VIIIIII
-
-void visualizarArquivo(char *nome, int blocoAtual, Bloco *disco, int quantidadeBlocos) { 
-    // Procurar o arquivo no diretório atual
-    int i;
-    int blocoInode = -1;
-
-    for (i = 2; i < disco[blocoAtual].diretorio.quantidadeEntradas; i++) {
-        if (strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) == 0) {
-            blocoInode = disco[blocoAtual].diretorio.entradas[i].bloco;
-            break;
-        }
-    }
-
-    if (blocoInode == -1) {
-        printf("Arquivo '%s' não encontrado.\n", nome);
+    if (quantidadeBlocosLivres(lista) < blocosNecessarios + 1)
+    {
+        printf("Erro: espaço insuficiente\n");
         return;
     }
 
-    // Verificar se o inode realmente é de arquivo
-    if (disco[blocoInode].tipo != INODE) {
-        printf("'%s' nao e um arquivo regular.\n", nome);
+    blocoInodeLink = alocarBloco(lista);
+
+    if (blocoInodeLink == -1)
+    {
+        printf("Erro: Falha na alocação do INODE para o link simbólico.\n");
         return;
     }
 
-    // Verificar se algum bloco de dados do arquivo está defeituoso
-    int corrompido = 0;
-    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
-        int bloco = disco[blocoInode].inode.enderecosDiretos[j];
-        if (bloco != -1 && disco[bloco].tipo == BAD) {
-            corrompido = 1;
-            break;
-        }
-    }
+    disco[blocoInodeLink].tipo = INODE;
 
-    if (corrompido)
-        printf("Arquivo '%s' corrompido. Nao e possivel abri\n", nome);
-    else
-        printf("Arquivo '%s' visualizado com sucesso\n", nome);
-}
+    Inode *inode = &disco[blocoInodeLink].inode;
+    inicializarInode(inode);
 
+    // Copia as permissões do INODE de origem (o alvo)
+    Inode *inodeOrigem = &disco[blocoInodeOrigem].inode;
+    strcpy(inode->protecao, inodeOrigem->protecao);
 
-/// RELATORIOOO 1
-int blocosOcupadosArquivo(char *nome, int blocoDiretorio, Bloco *disco) {
-    // Procurar o arquivo no diretório atual
-    int blocoInodeArquivo = -1;
-    for (int i = 2; i < disco[blocoDiretorio].diretorio.quantidadeEntradas; i++) {
-        if (strcmp(disco[blocoDiretorio].diretorio.entradas[i].nome, nome) == 0) {
-            blocoInodeArquivo = disco[blocoDiretorio].diretorio.entradas[i].bloco;
-            break;
-        }
-    }
+    inode->tipo = 'l';
+    inode->tamanho = tamanho;
+    inode->contadorHardLinks = 1;
 
-    if (blocoInodeArquivo == -1) {
-        printf("Arquivo '%s' não encontrado.\n", nome);
-        return -1;
-    }
+    time_t t = time(NULL);
+    struct tm *tm_info = localtime(&t);
+    strftime(inode->data, sizeof(inode->data), "%d/%m/%Y", tm_info);
+    strftime(inode->hora, sizeof(inode->hora), "%H:%M", tm_info);
 
-    int blocosOcupados = 0;
+    posicao = 0;
+    i = 0;
+    while (i < blocosNecessarios && i < MAX_ENDERECOS_DIRETOS_INODE)
+    {
+        blocoConteudo = alocarBloco(lista);
 
-    // Contar blocos diretos
-    for (int j = 0; j < MAX_ENDERECOS_DIRETOS_INODE; j++) {
-        if (disco[blocoInodeArquivo].inode.enderecosDiretos[j] != -1) {
-            blocosOcupados++;
-        }
-    }
-
-    // (Se quiser, depois dá pra incluir indiretos simples, duplos e triplos aqui)
-
-    printf("O arquivo '%s' ocupa %d blocos de dados (%d bytes).\n",
-           nome, blocosOcupados, blocosOcupados * 10);
-
-    return blocosOcupados;
-}
-
-
-//Relatorio 5
-void imprimirEstadoBlocos(Bloco *disco, int quantidadeBlocos) {
-    printf("\n=== ESTADO ATUAL DOS BLOCOS ===\n");
-    printf("Bloco\tTipo\n");
-    printf("--------------------------\n");
-
-    for (int i = 0; i < quantidadeBlocos; i++) {
-        char *tipo;
-
-        switch (disco[i].tipo) {
-            case 'D': tipo = "DIRETÓRIO"; break;
-            case 'A': tipo = "ARQUIVO"; break;
-            case 'I': tipo = "INODE"; break;
-            case 'F': tipo = "LIVRE"; break;
-            case 'B': tipo = "BAD"; break;
-            default:  tipo = "DESCONHECIDO"; break;
+        if (blocoConteudo == -1)
+        {
+            printf("Erro: Falha inesperada na alocação de bloco de conteúdo.\n");
+            // Em um FS real, seria necessário liberar o blocoInodeLink aqui.
+            return;
         }
 
-        printf("%d\t%s\n", i, tipo);
+        disco[blocoConteudo].tipo = ARQUIVO;
+        inode->enderecosDiretos[i] = blocoConteudo;
+
+        j = 0;
+        while (j < 10 && caminhoCompleto[posicao] != '\0')
+        {
+            disco[blocoConteudo].diretorio.entradas[0].nome[j] = caminhoCompleto[posicao];
+            posicao++;
+            j++;
+        }
+        disco[blocoConteudo].diretorio.entradas[0].nome[j] = '\0';
+
+        i++;
     }
-    printf("--------------------------\n");
+
+    i = disco[blocoAtual].diretorio.quantidadeEntradas;
+    strcpy(disco[blocoAtual].diretorio.entradas[i].nome, destino);
+    disco[blocoAtual].diretorio.entradas[i].bloco = blocoInodeLink;
+    disco[blocoAtual].diretorio.quantidadeEntradas++;
+
+    printf("Link simbólico '%s' -> '%s' criado com sucesso\n", destino, origem);
 }
 
-//Relatorio 2
+void removerLinkSimbolico(char *nome, int blocoAtual, Bloco *disco, ListaBlocosLivres *lista)
+{
+    int blocoInode;
+    int i, j;
 
-int maiorArquivoPossivel(ListaBlocosLivres *lista) {
-    int livres = quantidadeBlocosLivres(lista);
-
-    if (livres <= 1) {
-        printf("Espaço insuficiente para criar um novo arquivo.\n");
-        return 0;
+    blocoInode = localizarInodePorNome(nome, blocoAtual, disco);
+    if (blocoInode == -1)
+    {
+        printf("Erro: link simbólico '%s' não encontrado\n", nome);
+        return;
     }
 
-    // 1 bloco será usado pelo inode
-    int blocosDisponiveis = livres - 1;
+    if (disco[blocoInode].inode.tipo != 'l')
+    {
+        printf("Erro: '%s' não é um link simbólico\n", nome);
+        return;
+    }
 
-    printf("O maior arquivo que ainda pode ser criado ocupa %d blocos (%d bytes).\n",
-           blocosDisponiveis, blocosDisponiveis * 10);
+    i = 0;
+    while (i < MAX_ENDERECOS_DIRETOS_INODE)
+    {
+        if (disco[blocoInode].inode.enderecosDiretos[i] != -1)
+        {
+            realocarBlocos(lista, disco[blocoInode].inode.enderecosDiretos[i]);
+            disco[disco[blocoInode].inode.enderecosDiretos[i]].tipo = FREE;
+            disco[blocoInode].inode.enderecosDiretos[i] = -1;
+        }
+        i++;
+    }
 
-    return blocosDisponiveis;
+    realocarBlocos(lista, blocoInode);
+    disco[blocoInode].tipo = FREE;
+
+    i = 2;
+    while (i < disco[blocoAtual].diretorio.quantidadeEntradas &&
+           strcmp(disco[blocoAtual].diretorio.entradas[i].nome, nome) != 0)
+    {
+        i++;
+    }
+
+    j = i;
+    while (j < disco[blocoAtual].diretorio.quantidadeEntradas - 1)
+    {
+        disco[blocoAtual].diretorio.entradas[j] = disco[blocoAtual].diretorio.entradas[j + 1];
+        j++;
+    }
+    disco[blocoAtual].diretorio.quantidadeEntradas--;
+
+    printf("Link simbólico '%s' removido com sucesso\n", nome);
 }
 
+ 
 void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int quantidadeBlocos)
 {
     char linha[256];
@@ -1840,28 +1601,28 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
                     // }
                     // else
                     // {
-                        // int blocoDiretorio = disco[blocoInodeDestino].inode.enderecosDiretos[0];
-                        int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
-                        if (blocoDiretorio >= 0)
+                    // int blocoDiretorio = disco[blocoInodeDestino].inode.enderecosDiretos[0];
+                    int blocoDiretorio = abrirDiretorio(arg1, blocoAtual, disco);
+                    if (blocoDiretorio >= 0)
+                    {
+                        if (!temPermissao(disco[blocoDiretorio].inode, 'x'))
                         {
-                            if (!temPermissao(disco[blocoDiretorio].inode, 'x'))
-                            {
-                                printf("Permissão negada: sem permissão de execução neste diretório.\n");
-                                continue;
-                            }
-                            blocoAtual = blocoDiretorio;
+                            printf("Permissão negada: sem permissão de execução neste diretório.\n");
+                            continue;
+                        }
+                        blocoAtual = blocoDiretorio;
 
-                            if (strcmp(caminho, "/") == 0)
-                                snprintf(caminho, sizeof(caminho), "/%s", arg1);
-                            else
-                                snprintf(caminho + strlen(caminho),
-                                         sizeof(caminho) - strlen(caminho), "/%s", arg1);
-                        }
+                        if (strcmp(caminho, "/") == 0)
+                            snprintf(caminho, sizeof(caminho), "/%s", arg1);
                         else
-                        {
-                            printf("Erro ao acessar diretório: %s\n", arg1);
-                        }
+                            snprintf(caminho + strlen(caminho),
+                                     sizeof(caminho) - strlen(caminho), "/%s", arg1);
                     }
+                    else
+                    {
+                        printf("Erro ao acessar diretório: %s\n", arg1);
+                    }
+                    //}
                 }
             }
         }
@@ -1942,24 +1703,6 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
 
             removerDiretorio(arg1, blocoAtual, disco, listaBlocosLivres);
         }
-        // ======== RMDIR ========
-        else if (strcmp(comando, "rmdir") == 0)
-        {
-            arg1 = strtok(NULL, " ");
-            if (!arg1)
-            {
-                printf("Uso: rm <nome_arquivo>\n");
-                continue;
-            }
-
-            if (!temPermissao(disco[blocoAtual].inode, 'w'))
-            {
-                printf("Permissão negada: não é possível remover arquivos aqui.\n");
-                continue;
-            }
-
-            removerDiretorio(arg1, blocoAtual, disco, listaBlocosLivres);
-        }
 
         // ======== CHMOD ========
         else if (strcmp(comando, "chmod") == 0)
@@ -1988,36 +1731,80 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
 
             alterarPermissao(operacao, escopo, modos, nome, blocoAtual, disco);
         }
-        else if(strcmp(comando, "bad") == 0) { 
+        else if (strcmp(comando, "bad") == 0)
+        {
             arg1 = strtok(NULL, " ");
-            if (arg1 != NULL) {
+            if (arg1 != NULL)
+            {
                 int numeroBloco = atoi(arg1);
-                marcarBlocoBad(numeroBloco, disco, listaBlocosLivres, 1000); 
-            } else {
+                marcarBlocoBad(numeroBloco, disco, listaBlocosLivres, 1000);
+            }
+            else
+            {
                 printf("Uso: bad <numero_bloco>\n");
             }
         }
-        else if(strcmp(comando, "relatorio3") == 0) 
+        else if (strcmp(comando, "relatorio3") == 0)
             relatorioArquivosCorrompidos(disco, quantidadeBlocos);
-        else if(strcmp(comando, "df") == 0) 
+        else if (strcmp(comando, "df") == 0)
             mostrarEspacoDisco(disco, quantidadeBlocos, 10);
-        else if(strcmp(comando, "vi") == 0) {
+        else if (strcmp(comando, "vi") == 0)
+        {
             arg1 = strtok(NULL, " ");
-            if (arg1 != NULL) {
+            if (arg1 != NULL)
+            {
                 visualizarArquivo(arg1, blocoAtual, disco, quantidadeBlocos);
-            } else 
-                printf("Uso: vi <nome_arquivo>\n");}
-        else if(strcmp(comando, "blocos") == 0) {
+            }
+            else
+                printf("Uso: vi <nome_arquivo>\n");
+        }
+        else if (strcmp(comando, "blocos") == 0)
+        {
             arg1 = strtok(NULL, " ");
-            if (arg1 != NULL) {
+            if (arg1 != NULL)
+            {
                 blocosOcupadosArquivo(arg1, blocoAtual, disco);
-            } else {
+            }
+            else
+            {
                 printf("Uso: blocos <nome_arquivo>\n");
-            }}
-        else if(strcmp(comando, "estado") == 0) {
-            imprimirEstadoBlocos(disco, quantidadeBlocos);} 
-        else if(strcmp(comando, "maior") == 0) {
-            maiorArquivoPossivel(listaBlocosLivres);}
+            }
+        }
+        else if (strcmp(comando, "estado") == 0)
+        {
+            imprimirEstadoBlocos(disco, quantidadeBlocos);
+        }
+        else if (strcmp(comando, "maior") == 0)
+        {
+            maiorArquivoPossivel(listaBlocosLivres);
+        }
+        else if (strcmp(comando, "link") == 0)
+        {
+            char *tipo = strtok(NULL, " ");
+            char *origem = strtok(NULL, " ");
+            char *destino = strtok(NULL, " ");
+
+            if (!tipo || !origem || !destino)
+            {
+                printf("Uso: link (-s|-h) <origem> <destino>\n");
+                continue;
+            }
+
+            if (!temPermissao(disco[blocoAtual].inode, 'w'))
+            {
+                printf("Permissão negada: não é possível criar links neste diretório.\n");
+                continue;
+            }
+
+            if (strcmp(tipo, "-s") == 0)
+            {
+                criarLinkSimbolico(origem, destino, blocoAtual, listaBlocosLivres, disco);
+            }
+            else if (strcmp(tipo, "-h") == 0)
+                printf("Hard link ainda não implementado\n");
+            else
+                printf("Tipo inválido. Use -s para simbólico ou -h para físico\n");
+        }
         // ======== COMANDOS FORK (FILHO) ========
         else
         {
@@ -2048,34 +1835,35 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
                 else if (strcmp(comando, "vi") == 0)
                     printf("Simulação de vi (não implementada)\n");
                 else if (strcmp(comando, "rmdir") == 0)
-                    printf("Simulação de rmdir (não implementada)\n");
-                else if (strcmp(comando, "link") == 0)
-                    printf("Simulação de link (não implementada)\n");
+                    printf("Simulação de rmdir (não implementada)\n"); 
+                else if (strcmp(comando, "unlink") == 0)
                 {
-                    char *tipo = strtok(NULL, " ");
-                    char *nome = strtok(NULL, " ");
-
-                    if (!tipo || !nome)
                     {
-                        printf("Uso: unlink (-s|-h) <nome>\n");
-                        _exit(0);
-                    }
+                        char *tipo = strtok(NULL, " ");
+                        char *nome = strtok(NULL, " ");
 
-                    // Checagem de permissão de escrita para remover
-                    if (!temPermissao(disco[blocoAtual].inode, 'w'))
-                    {
-                        printf("Permissão negada: não é possível remover links aqui.\n");
-                        _exit(0);
-                    }
+                        if (!tipo || !nome)
+                        {
+                            printf("Uso: unlink (-s|-h) <nome>\n");
+                            _exit(0);
+                        }
 
-                    if (strcmp(tipo, "-s") == 0)
-                        removerLinkSimbolico(nome, blocoAtual, disco, listaBlocosLivres);
-                    else if (strcmp(tipo, "-h") == 0)
-                        printf("Unlink hard link ainda não implementado\n");
-                    else
-                        printf("Tipo inválido. Use -s ou -h\n");
+                        if (!temPermissao(disco[blocoAtual].inode, 'w'))
+                        {
+                            printf("Permissão negada: não é possível remover links aqui.\n");
+                            _exit(0);
+                        }
+
+                        if (strcmp(tipo, "-s") == 0)
+                            removerLinkSimbolico(nome, blocoAtual, disco, listaBlocosLivres);
+                        else if (strcmp(tipo, "-h") == 0)
+                            printf("Unlink hard link ainda não implementado\n");
+                        else
+                            printf("Tipo inválido. Use -s ou -h\n");
+                    }
                 }
-                else printf("Comando não encontrado: %s\n", comando);
+                else
+                    printf("Comando não encontrado: %s\n", comando);
 
                 _exit(0);
             }
@@ -2096,19 +1884,25 @@ int main(void)
 
     printf("Deseja informar a quantidade de blocos? [S/N] ");
     char op = getch();
-    if (toupper(op) == 'S') {
+    if (toupper(op) == 'S')
+    {
         int qtde;
         fflush(stdin);
         printf("\nInforme a quantidade de blocos: \n");
         scanf("%d", &qtde);
 
-        if (qtde > 1000 || qtde < 1){
+        if (qtde > 1000 || qtde < 1)
+        {
             printf("\nValor invalido sera setado 1000 blocos!\n");
-        } else {
+        }
+        else
+        {
             quantidadeBlocos = qtde;
             printf("\n%d blocos definidos com sucesso!\n", quantidadeBlocos);
         }
-    } else {
+    }
+    else
+    {
         printf("\n%d blocos definidos com sucesso!\n", quantidadeBlocos);
     }
 
@@ -2140,13 +1934,11 @@ int main(void)
     // inserirArquivo("arquivo3.txt", 25, listaBlocosLivres, disco, blocoRaiz);
     // inserirArquivo("arquivo4.txt", 25, listaBlocosLivres, disco, blocoRaiz);
     // inserirArquivo("arquivo5.txt", 25, listaBlocosLivres, disco, blocoRaiz);
-    //inserirDiretorio("diretorio1", listaBlocosLivres, disco, blocoRaiz);
+    // inserirDiretorio("diretorio1", listaBlocosLivres, disco, blocoRaiz);
     // abrir diretorio
     // int blocoAtual = abrirDiretorio("diretorio1", blocoRaiz, disco);
     // removerArquivo("arquivo1.txt", blocoRaiz, disco, listaBlocosLivres);
     // inserirArquivo("arquivo_diretorio1.txt", 150, listaBlocosLivres, disco, blocoAtual);
-
-    //testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
 
     // ###### FIM INSERCOES DE TESTE #######
     iniciarTerminal(disco, listaBlocosLivres, quantidadeBlocos);
