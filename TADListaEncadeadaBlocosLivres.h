@@ -20,14 +20,14 @@ void InserirInicio(ListaBlocosLivres *lista, Pilha *blocos) {
     lista->cabeca = novo;
 }
 
-void LiberarPilha(ListaBlocosLivres *pilha) {
-    NoLista *Aux;
+void LiberarLista(ListaBlocosLivres *lista) {
+    NoLista *Aux = lista->cabeca;
     while (Aux != NULL) {
         NoLista *Aux2 = Aux->prox;
-        delete(Aux2);
+        delete(Aux);
         Aux = Aux2;
     }
-    delete(pilha);
+    delete(lista);
 }
 
 Pilha* RemoverInicio(ListaBlocosLivres *lista) {

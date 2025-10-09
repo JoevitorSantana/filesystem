@@ -1,1 +1,4 @@
 output/main.exe
+*.exe
+main.exe
+.vscode/
