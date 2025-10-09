@@ -276,7 +276,7 @@ int alocarBloco(ListaBlocosLivres *lista)
         RemoverInicio(lista);
         Aux = lista->cabeca;
         if (Aux == NULL)
-        {
+        { // segurança extra
             printf("Espaco insuficiente\n");
             return -1;
         }
@@ -287,7 +287,7 @@ int alocarBloco(ListaBlocosLivres *lista)
         return -1;
     }
 
-    int bloco = Pop(Aux->blocos);
+    int bloco = Pop(Aux->blocos); // Pop deve retornar o índice do bloco
     return bloco;
 }
 
@@ -1086,215 +1086,6 @@ int temPermissao(Inode inode, char tipo)
     }
 }
 
-void testarPermissaoCHMOD(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, Bloco disco[])
-{
-    printf("\n===== TESTES AUTOMÁTICOS DE PERMISSÕES =====\n\n");
-
-    // Criar inode para o diretório raiz para poder testar permissões
-    int blocoInodeRaiz = alocarBloco(listaBlocosLivres);
-    disco[blocoInodeRaiz].tipo = INODE;
-    inicializarInode(&disco[blocoInodeRaiz].inode);
-
-    // Adicionar entrada "." apontando para o inode do diretório raiz
-    disco[blocoRaiz].diretorio.entradas[0].bloco = blocoInodeRaiz;
-    disco[blocoInodeRaiz].inode.enderecosDiretos[0] = blocoRaiz;
-
-    // 1. Cria diretórios e arquivos de teste
-    inserirDiretorio("testeDir", listaBlocosLivres, disco, blocoRaiz);
-    inserirArquivo("testeFile.txt", 10, listaBlocosLivres, disco, blocoRaiz);
-
-    printf("-> Estado inicial:\n");
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 2. Remove permissão de escrita do dono (u-w)
-    printf("\n>> chmod -u w testeDir\n");
-    alterarPermissao("-", "u", "w", "testeDir", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 3. Tenta criar um arquivo dentro do diretório sem permissão de escrita
-    printf("\n>> Tentando criar arquivo em testeDir (sem w):\n");
-    int blocoTesteDir = abrirDiretorio("testeDir", blocoRaiz, disco);
-    int blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
-    if (temPermissao(disco[blocoInodeTesteDir].inode, 'w'))
-    {
-        inserirArquivo("ok.txt", 10, listaBlocosLivres, disco, blocoTesteDir);
-        printf("✅ Criado com sucesso (w presente)\n");
-    }
-    else
-    {
-        printf("🚫 Permissão negada (sem w no diretório)\n");
-    }
-
-    // 4. Remove permissão de execução e tenta cd
-    printf("\n>> chmod -u x testeDir\n");
-    alterarPermissao("-", "u", "x", "testeDir", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Tentando cd testeDir (sem x):\n");
-    blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
-    if (temPermissao(disco[blocoInodeTesteDir].inode, 'x'))
-    {
-        abrirDiretorio("testeDir", blocoRaiz, disco);
-        printf("✅ cd permitido\n");
-    }
-    else
-    {
-        printf("🚫 Permissão negada (sem x)\n");
-    }
-
-    // 5. Adiciona permissão novamente e tenta entrar
-    printf("\n>> chmod +u x testeDir\n");
-    alterarPermissao("+", "u", "x", "testeDir", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Tentando cd testeDir novamente:\n");
-    blocoInodeTesteDir = localizarInodePorNome("testeDir", blocoRaiz, disco);
-    if (temPermissao(disco[blocoInodeTesteDir].inode, 'x'))
-    {
-        abrirDiretorio("testeDir", blocoRaiz, disco);
-        printf("✅ cd permitido novamente (x restaurado)\n");
-    }
-    else
-    {
-        printf("🚫 Ainda bloqueado\n");
-    }
-
-    // 6. Modifica arquivo
-    printf("\n>> chmod -u r testeFile.txt\n");
-    alterarPermissao("-", "u", "r", "testeFile.txt", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Tentando ler testeFile.txt (sem r):\n");
-    if (temPermissao(disco[localizarInodePorNome("testeFile.txt", blocoRaiz, disco)].inode, 'r'))
-    {
-        printf("✅ Pode ler arquivo\n");
-    }
-    else
-    {
-        printf("🚫 Sem permissão de leitura\n");
-    }
-
-    // 7. Restaura leitura e testa novamente
-    printf("\n>> chmod +u r testeFile.txt\n");
-    alterarPermissao("+", "u", "r", "testeFile.txt", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Tentando ler testeFile.txt (com r restaurado):\n");
-    if (temPermissao(disco[localizarInodePorNome("testeFile.txt", blocoRaiz, disco)].inode, 'r'))
-    {
-        printf("✅ Pode ler arquivo\n");
-    }
-    else
-    {
-        printf("🚫 Sem permissão de leitura\n");
-    }
-
-    // 8. Testa remoção de arquivo sem permissão de escrita no diretório
-    printf("\n>> Removendo permissão w do diretório raiz:\n");
-    printf(">> chmod -u w (diretório raiz)\n");
-    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w do root
-    printf("Permissões do diretório raiz atualizadas: %s\n", disco[blocoInodeRaiz].inode.protecao);
-
-    printf("\n>> Tentando remover testeFile.txt (sem w no diretório raiz):\n");
-    if (!temPermissao(disco[blocoInodeRaiz].inode, 'w'))
-    {
-        printf("🚫 Permissão negada: não é possível remover arquivos aqui.\n");
-    }
-    else
-    {
-        removerArquivo("testeFile.txt", blocoRaiz, disco, listaBlocosLivres);
-        printf("✅ Arquivo removido\n");
-    }
-
-    // 9. Restaura permissão de escrita no diretório raiz
-    printf("\n>> Restaurando permissão w do diretório raiz\n");
-    printf(">> chmod +u w (diretório raiz)\n");
-    disco[blocoInodeRaiz].inode.protecao[1] = 'w'; // Restaura w do user
-    printf("Permissões do diretório raiz restauradas: %s\n", disco[blocoInodeRaiz].inode.protecao);
-
-    // 10. Cria novo diretório e arquivo para mais testes
-    printf("\n>> Criando testeDir2 e arquivo2.txt\n");
-    inserirDiretorio("testeDir2", listaBlocosLivres, disco, blocoRaiz);
-    inserirArquivo("arquivo2.txt", 20, listaBlocosLivres, disco, blocoRaiz);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 11. Remove todas as permissões do usuário
-    printf("\n>> chmod -u rwx arquivo2.txt\n");
-    alterarPermissao("-", "u", "rwx", "arquivo2.txt", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Verificando permissões de arquivo2.txt:\n");
-    int blocoInodeArquivo2 = localizarInodePorNome("arquivo2.txt", blocoRaiz, disco);
-    printf("   r: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'r') ? "✅" : "🚫");
-    printf("   w: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'w') ? "✅" : "🚫");
-    printf("   x: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'x') ? "✅" : "🚫");
-
-    // 12. Adiciona todas as permissões de volta
-    printf("\n>> chmod +u rwx arquivo2.txt\n");
-    alterarPermissao("+", "u", "rwx", "arquivo2.txt", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Verificando permissões de arquivo2.txt:\n");
-    printf("   r: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'r') ? "✅" : "🚫");
-    printf("   w: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'w') ? "✅" : "🚫");
-    printf("   x: %s\n", temPermissao(disco[blocoInodeArquivo2].inode, 'x') ? "✅" : "🚫");
-
-    // 13. Testa permissões de grupo (g)
-    printf("\n>> chmod -g rx testeDir2\n");
-    alterarPermissao("-", "g", "rx", "testeDir2", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 14. Testa permissões de outros (o)
-    printf("\n>> chmod -o rwx testeDir2\n");
-    alterarPermissao("-", "o", "rwx", "testeDir2", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 15. Restaura todas as permissões
-    printf("\n>> chmod +g rx testeDir2\n");
-    alterarPermissao("+", "g", "rx", "testeDir2", blocoRaiz, disco);
-    printf(">> chmod +o rwx testeDir2\n");
-    alterarPermissao("+", "o", "rwx", "testeDir2", blocoRaiz, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 16. Teste final: mkdir sem permissão
-    printf("\n>> Removendo permissão w do diretório raiz\n");
-    printf(">> chmod -u w (diretório raiz)\n");
-    disco[blocoInodeRaiz].inode.protecao[1] = '-'; // Remove w
-    printf("Permissões do diretório raiz: %s\n", disco[blocoInodeRaiz].inode.protecao);
-
-    printf("\n>> Tentando criar diretório testeDir3 (sem w):\n");
-    if (!temPermissao(disco[blocoInodeRaiz].inode, 'w'))
-    {
-        printf("🚫 Permissão negada: não é possível criar diretórios aqui.\n");
-    }
-    else
-    {
-        inserirDiretorio("testeDir3", listaBlocosLivres, disco, blocoRaiz);
-        printf("✅ Diretório criado\n");
-    }
-
-    // Restaura permissão
-    printf("\n>> Restaurando permissão w do diretório raiz\n");
-    printf(">> chmod +u w (diretório raiz)\n");
-    disco[blocoInodeRaiz].inode.protecao[1] = 'w'; // Restaura w
-    printf("Permissões do diretório raiz: %s\n", disco[blocoInodeRaiz].inode.protecao);
-
-    printf("\n>> Tentando criar diretório testeDir3 (com w):\n");
-    if (temPermissao(disco[blocoInodeRaiz].inode, 'w'))
-    {
-        inserirDiretorio("testeDir3", listaBlocosLivres, disco, blocoRaiz);
-        printf("✅ Diretório criado com sucesso\n");
-    }
-    else
-    {
-        printf("🚫 Permissão negada\n");
-    }
-
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n===== FIM DOS TESTES =====\n\n");
-}
-
 void criarLinkSimbolico(char *origem, char *destino, int blocoAtual, ListaBlocosLivres *lista, Bloco *disco)
 {
     int blocoInodeOrigem;
@@ -1441,94 +1232,6 @@ void removerLinkSimbolico(char *nome, int blocoAtual, Bloco *disco, ListaBlocosL
     disco[blocoAtual].diretorio.quantidadeEntradas--;
 
     printf("Link simbólico '%s' removido com sucesso\n", nome);
-}
-
-void testarLinkSimbolico(int blocoRaiz, ListaBlocosLivres *listaBlocosLivres, Bloco disco[])
-{
-    printf("\n===== TESTES AUTOMÁTICOS DE LINKS SIMBÓLICOS =====\n\n");
-
-    // Prepara ambiente básico
-    inserirDiretorio("diretorio1", listaBlocosLivres, disco, blocoRaiz);
-    inserirDiretorio("dirLink", listaBlocosLivres, disco, blocoRaiz);
-    // Cria arquivo para ser a origem (30 bytes -> 3 blocos de conteúdo no seu FS)
-    inserirArquivo("arquivoBase.txt", 30, listaBlocosLivres, disco, blocoRaiz);
-    // Cria um arquivo grande para testar o uso de múltiplos blocos no link simbólico
-    inserirArquivo("arqGrande.txt", 150, listaBlocosLivres, disco, blocoRaiz);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 2️⃣ Cria link simbólico para o arquivo
-    printf("\n>> Criando link simbólico 'atalho.txt' -> 'arquivoBase.txt'\n");
-    criarLinkSimbolico("arquivoBase.txt", "atalho.txt", blocoRaiz, listaBlocosLivres, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 3️⃣ Verifica se o link foi criado e se as permissões foram copiadas
-    int blocoLink = localizarInodePorNome("atalho.txt", blocoRaiz, disco);
-    int blocoOrigem = localizarInodePorNome("arquivoBase.txt", blocoRaiz, disco);
-
-    if (blocoLink != -1 && disco[blocoLink].inode.tipo == 'l')
-        printf("✅ Link simbólico criado com sucesso (atalho.txt)\n");
-    else
-        printf("🚫 Falha ao criar link simbólico\n");
-
-    if (blocoLink != -1 && blocoOrigem != -1)
-    {
-        if (strcmp(disco[blocoLink].inode.protecao, disco[blocoOrigem].inode.protecao) == 0)
-            printf("✅ Permissões copiadas corretamente.\n");
-        else
-            printf("🚫 Falha ao copiar permissões. Link: %s | Origem: %s\n",
-                   disco[blocoLink].inode.protecao, disco[blocoOrigem].inode.protecao);
-    }
-
-    // 4️⃣ Testa criar link simbólico com nome duplicado
-    printf("\n>> Tentando criar link simbólico com nome já existente (atalho.txt)\n");
-    criarLinkSimbolico("arquivoBase.txt", "atalho.txt", blocoRaiz, listaBlocosLivres, disco);
-
-    // 5️⃣ Testa criar link simbólico para origem inexistente
-    printf("\n>> Tentando criar link simbólico para origem inexistente ('naoExiste.txt')\n");
-    criarLinkSimbolico("naoExiste.txt", "atalhoFantasma", blocoRaiz, listaBlocosLivres, disco);
-
-    // 6️⃣ Cria link simbólico para diretório
-    printf("\n>> Criando link simbólico 'atalhoDir' -> 'dirLink'\n");
-    criarLinkSimbolico("dirLink", "atalhoDir", blocoRaiz, listaBlocosLivres, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 7️⃣ Cria link simbólico com string de origem longa (testa múltiplos blocos de conteúdo do link)
-    printf("\n>> Criando link simbólico 'atalhoLongo' -> 'arqGrande.txt'\n");
-    criarLinkSimbolico("arqGrande.txt", "atalhoLongo", blocoRaiz, listaBlocosLivres, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 8️⃣ Remove links simbólicos
-    printf("\n>> Removendo link simbólico 'atalho.txt'\n");
-    removerLinkSimbolico("atalho.txt", blocoRaiz, disco, listaBlocosLivres);
-    printf("\n>> Removendo link simbólico 'atalhoDir'\n");
-    removerLinkSimbolico("atalhoDir", blocoRaiz, disco, listaBlocosLivres);
-    printf("\n>> Removendo link simbólico 'atalhoLongo'\n");
-    removerLinkSimbolico("atalhoLongo", blocoRaiz, disco, listaBlocosLivres);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 9️⃣ Tenta remover link inexistente
-    printf("\n>> Tentando remover link simbólico inexistente 'naoExiste'\n");
-    removerLinkSimbolico("naoExiste", blocoRaiz, disco, listaBlocosLivres);
-
-    // 🔟 Cria e remove múltiplos links seguidos (testa desalocação e reuso)
-    printf("\n>> Criando vários links simbólicos de teste\n");
-    criarLinkSimbolico("arquivoBase.txt", "link1", blocoRaiz, listaBlocosLivres, disco);
-    criarLinkSimbolico("arquivoBase.txt", "link2", blocoRaiz, listaBlocosLivres, disco);
-    criarLinkSimbolico("arquivoBase.txt", "link3", blocoRaiz, listaBlocosLivres, disco);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    printf("\n>> Removendo links criados\n");
-    removerLinkSimbolico("link1", blocoRaiz, disco, listaBlocosLivres);
-    removerLinkSimbolico("link2", blocoRaiz, disco, listaBlocosLivres);
-    removerLinkSimbolico("link3", blocoRaiz, disco, listaBlocosLivres);
-    listarDiretorioDetalhado(disco[blocoRaiz].diretorio, disco);
-
-    // 1️⃣1️⃣ Testa erro de espaço insuficiente (simulado) - deve capturar o erro
-    printf("\n>> Testando erro de espaço insuficiente (simulado)\n");
-    ListaBlocosLivres listaVazia = {0};
-    criarLinkSimbolico("arquivoBase.txt", "semEspaco", blocoRaiz, &listaVazia, disco);
-
-    printf("\n===== FIM DOS TESTES DE LINKS SIMBÓLICOS =====\n\n");
 }
 
 // BAAAADDDDD
@@ -1909,21 +1612,19 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
                         blocoAtual = blocoDiretorio;
 
                         if (strcmp(caminho, "/") == 0)
-                            sprintf(caminho, "/%s", arg1);
+                            snprintf(caminho, sizeof(caminho), "/%s", arg1);
                         else
-                        {
-                            strcat(caminho, "/");
-                            strcat(caminho, arg1);
-                        }
+                            snprintf(caminho + strlen(caminho),
+                                     sizeof(caminho) - strlen(caminho), "/%s", arg1);
                     }
                     else
                     {
                         printf("Erro ao acessar diretório: %s\n", arg1);
-                    } 
+                    }
+                    //}
                 }
             }
         }
-
         // ======== MKDIR ========
         else if (strcmp(comando, "mkdir") == 0)
         {
@@ -2005,9 +1706,9 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
         // ======== CHMOD ========
         else if (strcmp(comando, "chmod") == 0)
         {
-            char *arg1 = strtok(NULL, " ");
-            char *modos = strtok(NULL, " ");
-            char *nome = strtok(NULL, " ");
+            char *arg1 = strtok(NULL, " ");  // "+u" ou "-g"
+            char *modos = strtok(NULL, " "); // "rw"
+            char *nome = strtok(NULL, " ");  // nome do arquivo
 
             if (!arg1 || !modos || !nome)
             {
@@ -2076,7 +1777,6 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
         {
             maiorArquivoPossivel(listaBlocosLivres);
         }
-        // ======== LINK SIMBÓLICO (MOVIMENTO E ADAPTAÇÃO) ========
         else if (strcmp(comando, "link") == 0)
         {
             char *tipo = strtok(NULL, " ");
@@ -2107,10 +1807,9 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
             else
                 printf("Tipo inválido. Use -s para simbólico ou -h para físico\n");
         }
+        // ======== COMANDOS FORK (FILHO) ========
         else
         {
-
-            // ======== COMANDOS FORK (FILHO) ========
             pid_t pid = fork();
             if (pid < 0)
             {
@@ -2139,9 +1838,8 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
                     printf("Simulação de vi (não implementada)\n");
                 else if (strcmp(comando, "rmdir") == 0)
                     printf("Simulação de rmdir (não implementada)\n");
-
-                // ======== UNLINK SIMBÓLICO (MOVIMENTO PARA FILHO) ========
-                else if (strcmp(comando, "unlink") == 0)
+                else if (strcmp(comando, "link") == 0)
+                    printf("Simulação de link (não implementada)\n");
                 {
                     char *tipo = strtok(NULL, " ");
                     char *nome = strtok(NULL, " ");
@@ -2166,10 +1864,7 @@ void iniciarTerminal(Bloco *disco, ListaBlocosLivres *listaBlocosLivres, int qua
                     else
                         printf("Tipo inválido. Use -s ou -h\n");
                 }
-                // ======== FIM UNLINK SIMBÓLICO ========
-
-                else
-                    printf("Comando não encontrado: %s\n", comando);
+                else printf("Comando não encontrado: %s\n", comando);
 
                 _exit(0);
             }
@@ -2246,18 +1941,6 @@ int main(void)
     // removerArquivo("arquivo1.txt", blocoRaiz, disco, listaBlocosLivres);
     // inserirArquivo("arquivo_diretorio1.txt", 150, listaBlocosLivres, disco, blocoAtual);
 
-     //testarPermissaoCHMOD(blocoRaiz, listaBlocosLivres, disco);
-    // testarLinkSimbolico(blocoRaiz, listaBlocosLivres, disco);
-
     // ###### FIM INSERCOES DE TESTE #######
     iniciarTerminal(disco, listaBlocosLivres, quantidadeBlocos);
-
-    // percorrer blocos e imprimir seus tipos
-    for (int i = 0; i < quantidadeBlocos; i++)
-    {
-        Bloco b = disco[i];
-        printf("Bloco %d: Tipo %c\n", i, disco[i].tipo);
-    }
-
-    return 0;
 }
